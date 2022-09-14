@@ -1,2 +1,5 @@
 # aquiche
+
 Async cache in-memory
+
+NOT READY FOR USE, JUST A PLACEHOLDER FOR THE NAME. REAL VERSION COMING SOON!

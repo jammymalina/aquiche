@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "aquiche"
+version = "0.0.1"
+description = "Async cache in-memory"
+authors = ["Jakub Jantosik <jakub.jantosik@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.1"
+black = "^22.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+test = "ci:test"
+lint = "ci:lint"
