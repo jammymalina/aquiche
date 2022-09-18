@@ -8,10 +8,13 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
+bitarray = "^2.6"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1"
 black = "^22.0"
+mypy = "^0.971"
+pylint = "^2.15"
 
 [build-system]
 requires = ["poetry-core"]
