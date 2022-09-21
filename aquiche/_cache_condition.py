@@ -25,7 +25,7 @@ def get_cache_condition(condition: CacheCondition) -> Optional[CallableCacheCond
     if condition in _NOT_NONE_CONDITIONS:
         return _not_none_store_condition
     if isinstance(condition, str):
-        raise ValueError(f"unknown cache condition {condition}")
+        raise ValueError(f"Unknown cache condition {condition}")
     return condition
 
 

@@ -101,10 +101,8 @@ class Backend(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def get_size(self, key: str) -> int:
-        """
-        Return size in bites that allocated by a value for given key
-        """
+    async def get_size_bytes(self, key: str) -> int:
+        raise NotImplemented
 
     @abstractmethod
     async def clear(self):

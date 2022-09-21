@@ -12,7 +12,7 @@ async def _is_disabled_middleware(call, *args, backend=None, cmd=None, **kwargs)
     return await call(*args, **kwargs)
 
 
-class ControlMixin(object):
+class ControlMixin:
     def __init__(self, *args, enabled: bool = True, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.__disable = ContextVar(str(id(self)), default=())

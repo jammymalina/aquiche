@@ -194,7 +194,7 @@ class Memory(Backend):
     async def unlock(self, key: str, value: Any) -> bool:
         return self._delete(key)
 
-    async def get_size(self, key: str) -> int:
+    async def get_size_bytes(self, key: str) -> int:
         if key in self.store:
             return get_obj_size(self.store[key])
         return 0

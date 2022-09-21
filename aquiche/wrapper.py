@@ -225,8 +225,8 @@ class Cache(Backend):
     def unlock(self, key: str, value: str):
         return self._with_middlewares("unlock", key)(key=key, value=value)
 
-    def get_size(self, key: str):
-        return self._with_middlewares("get_size", key)(key)
+    def _bytes(self, key: str):
+        return self._with_middlewares("get_size_bytes", key)(key)
 
     def ping(self, message: Optional[bytes] = None) -> str:
         message = b"PING" if message is None else message
@@ -469,20 +469,5 @@ class Cache(Backend):
             ttl=ttl_to_seconds(ttl) or 0,
             exceptions=exceptions or self._default_fail_exceptions,
             key=key,
-            prefix=prefix,
-        )
-
-    def locked(
-        self,
-        ttl: Optional[TTL] = None,
-        key: Optional[str] = None,
-        step: Union[int, float] = 0.1,
-        prefix: str = "locked",
-    ):
-        return decorators.locked(
-            backend=self,
-            ttl=ttl_to_seconds(ttl),
-            key=key,
-            step=step,
             prefix=prefix,
         )
