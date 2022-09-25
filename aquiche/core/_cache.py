@@ -1,8 +1,8 @@
-from asyncio import Lock, Event, sleep as asleep, iscoroutinefunction
+from asyncio import Lock, Event, sleep as asleep
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 import random
-from typing import Any, Awaitable, Optional, Tuple
+from typing import Any, Awaitable, Callable, Optional, Tuple
 
 
 class CacheTaskExecutionInfo:
@@ -28,7 +28,9 @@ class CachedRecord:
         self.__refresh_interval = refresh_interval
         self.__cached_value = CachedValue()
 
-    async def get_cached(self, task: Awaitable[Any], task_exec_info: Optional[CacheTaskExecutionInfo] = None) -> Any:
+    async def get_cached(
+        self, task: Callable[[], Awaitable[Any]], task_exec_info: Optional[CacheTaskExecutionInfo] = None
+    ) -> Any:
         event = Event()
         await self.__mutex.acquire()
 
@@ -54,7 +56,7 @@ class CachedRecord:
 
         return self.__cached_value.value
 
-    async def __store_cache(self, task: Awaitable[Any], exec_info: CacheTaskExecutionInfo) -> None:
+    async def __store_cache(self, task: Callable[[], Awaitable[Any]], exec_info: CacheTaskExecutionInfo) -> None:
         if self.__cached_value.inflight is None:
             raise RuntimeError("Aquiche internal error - potential deadlock")
         value, is_error = await self.__execute_task(task=task, exec_info=exec_info)
@@ -69,12 +71,13 @@ class CachedRecord:
         if is_error and exec_info.fail:
             raise value
 
-    async def __execute_task(self, task: Awaitable[Any], exec_info: CacheTaskExecutionInfo) -> Tuple[Any, bool]:
+    async def __execute_task(
+        self, task: Callable[[], Awaitable[Any]], exec_info: CacheTaskExecutionInfo
+    ) -> Tuple[Any, bool]:
+        retry_iter = 0
         while True:
             try:
-                if iscoroutinefunction(task):
-                    return (await task(), False)
-                return (await task, False)
+                return (await task(), False)
             except Exception as err:
                 if retry_iter >= exec_info.retries:
                     return err, True
