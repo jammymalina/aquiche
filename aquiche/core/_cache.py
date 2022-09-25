@@ -56,7 +56,7 @@ class CachedRecord:
 
     async def __store_cache(self, task: Awaitable[Any], exec_info: CacheTaskExecutionInfo) -> None:
         if self.__cached_value.inflight is None:
-            raise RuntimeError("Aquiche internal error - possible deadlock")
+            raise RuntimeError("Aquiche internal error - potential deadlock")
         value, is_error = await self.__execute_task(task=task, exec_info=exec_info)
 
         async with self.__mutex:
