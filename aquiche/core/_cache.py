@@ -19,12 +19,12 @@ class CachedValue:
 
 
 class CachedRecord:
-    __mutex: Lock
+    __lock: Lock
     __refresh_interval: Optional[timedelta]
     __cached_value: CachedValue
 
     def __init__(self, refresh_interval: Optional[timedelta] = None) -> None:
-        self.__mutex = Lock()
+        self.__lock = Lock()
         self.__refresh_interval = refresh_interval
         self.__cached_value = CachedValue()
 
@@ -32,22 +32,22 @@ class CachedRecord:
         self, task: Callable[[], Awaitable[Any]], task_exec_info: Optional[CacheTaskExecutionInfo] = None
     ) -> Any:
         event = Event()
-        await self.__mutex.acquire()
+        await self.__lock.acquire()
 
         if self.__cached_value.last_fetched is not None and (
             self.__refresh_interval is None
             or (datetime.now(timezone.utc) - self.__cached_value.last_fetched) < self.__refresh_interval
         ):
-            self.__mutex.release()
+            self.__lock.release()
             return self.__cached_value.value
 
         if self.__cached_value.inflight is not None:
             event = self.__cached_value.inflight
-            self.__mutex.release()
+            self.__lock.release()
         else:
             self.__cached_value.inflight = Event()
             event = self.__cached_value.inflight
-            self.__mutex.release()
+            self.__lock.release()
 
             task_exec_info = task_exec_info or CacheTaskExecutionInfo()
             await self.__store_cache(task=task, exec_info=task_exec_info)
@@ -61,7 +61,7 @@ class CachedRecord:
             raise RuntimeError("Aquiche internal error - potential deadlock")
         value, is_error = await self.__execute_task(task=task, exec_info=exec_info)
 
-        async with self.__mutex:
+        async with self.__lock:
             event = self.__cached_value.inflight
             self.__cached_value.value = value
             self.__cached_value.last_fetched = datetime.now(timezone.utc)
