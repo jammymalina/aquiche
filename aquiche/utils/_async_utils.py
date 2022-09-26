@@ -1,8 +1,10 @@
 from asyncio import iscoroutinefunction
-from typing import Any, Awaitable, Callable
+from typing import Union
+
+from aquiche._core import AsyncFunction, SyncFunction
 
 
-def awaitify(func: Callable) -> Callable[..., Awaitable[Any]]:
+def awaitify(func: Union[SyncFunction, AsyncFunction]) -> AsyncFunction:
     if iscoroutinefunction(func):
         return func
 

@@ -1,9 +1,9 @@
-from asyncio import sleep as asleep, gather
-import functools
+from asyncio import gather
 
 from pytest_mock import MockerFixture
 
-from aquiche.core._cache import CachedValue, CachedRecord, CacheTaskExecutionInfo
+from aquiche._core import CachedValue
+from aquiche._cache import AsyncCachedRecord
 
 
 def test_default_cached_value() -> None:
@@ -17,16 +17,16 @@ def test_default_cached_value() -> None:
 
 async def test_cache_stampede(mocker: MockerFixture) -> None:
     """It should execute task only once even when multiple cache calls at the same are made"""
-    cached_record = CachedRecord()
-    task = mocker.AsyncMock(return_value=42)
+    get_function = mocker.AsyncMock(return_value=42)
+    cached_record = AsyncCachedRecord(get_function=get_function)
 
     values = await gather(
-        cached_record.get_cached(task=task, task_exec_info=CacheTaskExecutionInfo()),
-        cached_record.get_cached(task=task, task_exec_info=CacheTaskExecutionInfo()),
-        cached_record.get_cached(task=task, task_exec_info=CacheTaskExecutionInfo()),
-        cached_record.get_cached(task=task, task_exec_info=CacheTaskExecutionInfo()),
+        cached_record.get_cached(),
+        cached_record.get_cached(),
+        cached_record.get_cached(),
+        cached_record.get_cached(),
     )
 
     for value in values:
         assert value == 42
-    task.assert_called_once()
+    get_function.assert_called_once()

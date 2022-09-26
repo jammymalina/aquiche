@@ -1,4 +1,4 @@
-from aquiche._async_utils import awaitify
+from aquiche.utils._async_utils import awaitify
 
 
 def sync_sum_function(a: int, b: int) -> int:
