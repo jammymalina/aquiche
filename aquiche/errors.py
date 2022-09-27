@@ -24,3 +24,8 @@ class DurationError(AquicheError):
 class TimeError(AquicheError):
     def __init__(self) -> None:
         super().__init__(message="Invalid time format")
+
+
+class InvalidExpressionError(AquicheError):
+    def __init__(self, expression: str, position: int, error_message: str) -> None:
+        super().__init__(message=f"Invalid expression '{expression}': {error_message} at position {position}")
