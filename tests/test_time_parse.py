@@ -1,5 +1,6 @@
-import re
 from datetime import date, datetime, time, timedelta, timezone
+import inspect
+from typing import Any
 
 import pytest
 
@@ -46,7 +47,7 @@ def create_tz(minutes):
         ("nan", ValueError),
     ],
 )
-def test_date_parsing(value, result):
+def test_date_parsing(value: Any, result: Any) -> None:
     """It should parse or not parse dates"""
     if type(result) == type and issubclass(result, Exception):
         with pytest.raises(result):
@@ -84,10 +85,10 @@ def test_date_parsing(value, result):
         ("11:05:00-25:00", errors.TimeError),
     ],
 )
-def test_time_parsing(value, result):
+def test_time_parsing(value: Any, result: Any) -> None:
     """It should parse or not parse time"""
-    if result == ValueError:
-        with pytest.raises(ValueError):
+    if inspect.isclass(result) and issubclass(result, Exception):
+        with pytest.raises(result):
             parse_time(value)
     else:
         assert parse_time(value) == result
@@ -137,9 +138,9 @@ def test_time_parsing(value, result):
         ("nan", ValueError),
     ],
 )
-def test_datetime_parsing(value, result):
+def test_datetime_parsing(value: Any, result: Any) -> None:
     """It should parse or not parse datetime"""
-    if type(result) == type and issubclass(result, Exception):
+    if inspect.isclass(result) and issubclass(result, Exception):
         with pytest.raises(result):
             parse_datetime(value)
     else:
@@ -158,7 +159,7 @@ def test_datetime_parsing(value, result):
         timedelta(seconds=30),  # seconds
     ],
 )
-def test_parse_python_format(delta):
+def test_parse_python_format(delta: timedelta) -> Any:
     """It should parse native python duration"""
     assert parse_duration(delta) == delta
     assert parse_duration(str(delta)) == delta
@@ -210,10 +211,10 @@ def test_parse_python_format(delta):
         (b"PT0.000005S", timedelta(microseconds=5)),
     ],
 )
-def test_parse_durations(value, result):
+def test_parse_durations(value: Any, result: Any) -> None:
     """It should parse or not parse durations"""
-    if result == ValueError:
-        with pytest.raises(ValueError):
+    if inspect.isclass(result) and issubclass(result, Exception):
+        with pytest.raises(result):
             parse_duration(value)
     else:
         assert parse_duration(value) == result

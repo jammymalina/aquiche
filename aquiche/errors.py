@@ -1,50 +1,26 @@
-from typing import Any, Callable, Tuple, Type
+class AquicheError(Exception):
+    message: str
 
-__all__ = (
-    "DateError",
-    "DateTimeError",
-    "DurationError",
-    "TimeError",
-)
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
-def cls_kwargs(cls: Type["AquicheErrorMixin"], ctx: Any) -> "AquicheErrorMixin":
-    return cls(**ctx)
+class DateError(AquicheError):
+    def __init__(self) -> None:
+        super().__init__(message="Invalid date format")
 
 
-class AquicheErrorMixin:
-    code: str
-    msg_template: str
-
-    def __init__(self, **ctx: Any) -> None:
-        self.__dict__ = ctx
-
-    def __str__(self) -> str:
-        return self.msg_template.format(**self.__dict__)
-
-    def __reduce__(self) -> Tuple[Callable[..., "AquicheErrorMixin"], Tuple[Type["AquicheErrorMixin"], Any]]:
-        return cls_kwargs, (self.__class__, self.__dict__)
+class DateTimeError(AquicheError):
+    def __init__(self) -> None:
+        super().__init__(message="Invalid datetime format")
 
 
-class AquicheTypeError(AquicheErrorMixin, TypeError):
-    pass
+class DurationError(AquicheError):
+    def __init__(self) -> None:
+        super().__init__(message="Invalid duration format")
 
 
-class AquicheValueError(AquicheErrorMixin, ValueError):
-    pass
-
-
-class DateError(AquicheValueError):
-    msg_template = "invalid date format"
-
-
-class DateTimeError(AquicheValueError):
-    msg_template = "invalid datetime format"
-
-
-class DurationError(AquicheValueError):
-    msg_template = "invalid duration format"
-
-
-class TimeError(AquicheValueError):
-    msg_template = "invalid time format"
+class TimeError(AquicheError):
+    def __init__(self) -> None:
+        super().__init__(message="Invalid time format")
