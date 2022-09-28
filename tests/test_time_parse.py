@@ -210,7 +210,12 @@ def test_parse_python_format(delta: timedelta) -> Any:
         ("PT0.000005S", timedelta(microseconds=5)),
         (b"PT0.000005S", timedelta(microseconds=5)),
         # custom
-        ("1m 10h 10seconds", timedelta(seconds=36070)),
+        ("1m 10h 10s", timedelta(seconds=36070)),
+        ("1minute 10hour 10second", timedelta(seconds=36070)),
+        ("1minutes 10hours 10seconds", timedelta(seconds=36070)),
+        ("1 minutes 2 days 10 hours 10 seconds", timedelta(seconds=208870)),
+        ("1 m 2 d 10 h 10 s", timedelta(seconds=208870)),
+        ("1 minute 2 day 10 hours 10 seconds", timedelta(seconds=208870)),
     ],
 )
 def test_parse_durations(value: Any, result: Any) -> None:
