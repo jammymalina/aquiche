@@ -1,3 +1,6 @@
+from typing import Any
+
+
 class AquicheError(Exception):
     message: str
 
@@ -7,23 +10,23 @@ class AquicheError(Exception):
 
 
 class DateError(AquicheError):
-    def __init__(self) -> None:
-        super().__init__(message="Invalid date format")
+    def __init__(self, value: Any) -> None:
+        super().__init__(message=f"Invalid date format: {value}")
 
 
 class DateTimeError(AquicheError):
-    def __init__(self) -> None:
-        super().__init__(message="Invalid datetime format")
+    def __init__(self, value: Any) -> None:
+        super().__init__(message=f"Invalid datetime format: {value}")
 
 
 class DurationError(AquicheError):
-    def __init__(self) -> None:
-        super().__init__(message="Invalid duration format")
+    def __init__(self, value: Any) -> None:
+        super().__init__(message=f"Invalid duration format: {value}")
 
 
 class TimeError(AquicheError):
-    def __init__(self) -> None:
-        super().__init__(message="Invalid time format")
+    def __init__(self, value: Any) -> None:
+        super().__init__(message=f"Invalid time format: {value}")
 
 
 class InvalidExpressionError(AquicheError):

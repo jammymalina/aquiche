@@ -5,6 +5,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Dict, Optional, Type, Union
 
 from aquiche import errors
+from aquiche.utils._sum_expression_parser import SumExpressionParser, SumExpressionParserConfig
 
 DATE_EXPR = r"(?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})"
 TIME_EXPR = (
@@ -38,6 +39,26 @@ iso8601_duration_re = re.compile(
     r"(?:(?P<seconds>\d+(.\d+)?)S)?"
     r")?"
     r"$"
+)
+
+custom_duration_parser = SumExpressionParser(
+    SumExpressionParserConfig(
+        case_sensitive=False,
+        value_mapping={
+            "second": 1,
+            "seconds": 1,
+            "s": 1,
+            "minute": 60,
+            "minutes": 60,
+            "m": 60,
+            "hour": 3600,
+            "hours": 3600,
+            "h": 3600,
+            "day": 24 * 3600,
+            "days": 24 * 3600,
+            "d": 24 * 3600,
+        },
+    )
 )
 
 EPOCH = datetime(1970, 1, 1)
@@ -83,7 +104,7 @@ def _parse_timezone(value: Optional[str], error: Type[Exception]) -> Union[None,
         try:
             return timezone(timedelta(minutes=offset))
         except ValueError as err:
-            raise error() from err
+            raise error(value) from err
     return None
 
 
@@ -102,14 +123,14 @@ def parse_date(value: Union[date, StrBytesIntFloat]) -> date:
 
     match = date_re.match(value)  # type: ignore
     if match is None:
-        raise errors.DateError()
+        raise errors.DateError(value)
 
     date_params = {k: int(v) for k, v in match.groupdict().items()}
 
     try:
         return date(**date_params)
     except ValueError as err:
-        raise errors.DateError() from err
+        raise errors.DateError(value) from err
 
 
 def parse_time(value: Union[time, StrBytesIntFloat]) -> time:
@@ -120,7 +141,7 @@ def parse_time(value: Union[time, StrBytesIntFloat]) -> time:
     if number is not None:
         if number >= 86400:
             # doesn't make sense since the time time loop back around to 0
-            raise errors.TimeError()
+            raise errors.TimeError(value)
         return (datetime.min + timedelta(seconds=number)).time()
 
     if isinstance(value, bytes):
@@ -128,7 +149,7 @@ def parse_time(value: Union[time, StrBytesIntFloat]) -> time:
 
     match = time_re.match(value)  # type: ignore
     if match is None:
-        raise errors.TimeError()
+        raise errors.TimeError(value)
 
     parsed_params = match.groupdict()
     if parsed_params["microsecond"]:
@@ -141,7 +162,7 @@ def parse_time(value: Union[time, StrBytesIntFloat]) -> time:
     try:
         return time(**time_params)  # type: ignore
     except ValueError as err:
-        raise errors.TimeError() from err
+        raise errors.TimeError(value) from err
 
 
 def parse_datetime(value: Union[datetime, StrBytesIntFloat]) -> datetime:
@@ -157,7 +178,7 @@ def parse_datetime(value: Union[datetime, StrBytesIntFloat]) -> datetime:
 
     match = datetime_re.match(value)  # type: ignore
     if match is None:
-        raise errors.DateTimeError()
+        raise errors.DateTimeError(value)
 
     parsed_params = match.groupdict()
     if parsed_params["microsecond"]:
@@ -172,7 +193,7 @@ def parse_datetime(value: Union[datetime, StrBytesIntFloat]) -> datetime:
     try:
         return datetime(**datetime_params)  # type: ignore
     except ValueError as err:
-        raise errors.DateTimeError() from err
+        raise errors.DateTimeError(value) from err
 
 
 def parse_duration(value: StrBytesIntFloat) -> timedelta:
@@ -191,7 +212,7 @@ def parse_duration(value: StrBytesIntFloat) -> timedelta:
         raise TypeError("invalid type; expected timedelta, string, bytes, int or float") from err
 
     if not match:
-        raise errors.DurationError()
+        return __parse_duration_custom(value)
 
     parsed_params = match.groupdict()
     sign = -1 if parsed_params.pop("sign", "+") == "-" else 1
@@ -204,3 +225,11 @@ def parse_duration(value: StrBytesIntFloat) -> timedelta:
     timedelta_params = {k: float(v) for k, v in parsed_params.items() if v is not None}
 
     return sign * timedelta(**timedelta_params)
+
+
+def __parse_duration_custom(value: str) -> timedelta:
+    try:
+        duration_seconds = custom_duration_parser.parse(value)
+        return timedelta(seconds=duration_seconds)
+    except Exception as err:
+        raise errors.DurationError(value) from err
