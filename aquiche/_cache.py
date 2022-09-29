@@ -4,6 +4,7 @@ import random
 from typing import Any, Optional, Tuple, Union
 
 from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo
+from aquiche import errors
 from aquiche._expiration import AsyncCacheExpiration, CacheExpiration, NonExpiringCacheExpiration
 
 
@@ -56,7 +57,7 @@ class AsyncCachedRecord:
 
     async def __store_cache(self) -> None:
         if self.__cached_value.inflight is None:
-            raise RuntimeError("Aquiche internal error - potential deadlock")
+            raise errors.DeadlockError()
         value, is_error = await self.__execute_task()
 
         async with self.__lock:

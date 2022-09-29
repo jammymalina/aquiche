@@ -1,7 +1,7 @@
 from typing import Any
 
 
-class AquicheError(ValueError):
+class AquicheError(Exception):
     message: str
 
     def __init__(self, message: str) -> None:
@@ -9,32 +9,40 @@ class AquicheError(ValueError):
         self.message = message
 
 
-class DateError(AquicheError):
+class AquicheValueError(AquicheError, ValueError):
+    pass
+
+
+class AquicheRuntimeError(AquicheError, RuntimeError):
+    pass
+
+
+class DateError(AquicheValueError):
     def __init__(self, value: Any) -> None:
         super().__init__(message=f"Invalid date format: {value}")
 
 
-class DateTimeError(AquicheError):
+class DateTimeError(AquicheValueError):
     def __init__(self, value: Any) -> None:
         super().__init__(message=f"Invalid datetime format: {value}")
 
 
-class DurationError(AquicheError):
+class DurationError(AquicheValueError):
     def __init__(self, value: Any) -> None:
         super().__init__(message=f"Invalid duration format: {value}")
 
 
-class TimeError(AquicheError):
+class TimeError(AquicheValueError):
     def __init__(self, value: Any) -> None:
         super().__init__(message=f"Invalid time format: {value}")
 
 
-class InvalidExpressionError(AquicheError):
+class InvalidExpressionError(AquicheValueError):
     def __init__(self, expression: str, position: int, error_message: str) -> None:
         super().__init__(message=f"Invalid expression '{expression}': {error_message} at position {position}")
 
 
-class InvalidTimeFormatError(AquicheError):
+class InvalidTimeFormatError(AquicheValueError):
     def __init__(self, value: Any) -> None:
         super().__init__(
             f"Invalid cache expiration value '{value}': "
@@ -42,8 +50,13 @@ class InvalidTimeFormatError(AquicheError):
         )
 
 
-class ExtractionError(AquicheError):
+class ExtractionError(AquicheValueError):
     def __init__(self, attribute_path: Any) -> None:
         super().__init__(
             f"Unable to extract value from an object, path does not point to any valid value: {attribute_path}"
         )
+
+
+class DeadlockError(AquicheRuntimeError):
+    def __init__(self) -> None:
+        super().__init__("Aquiche internal error - potential deadlock")
