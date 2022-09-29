@@ -1,7 +1,7 @@
 from typing import Any
 
 
-class AquicheError(Exception):
+class AquicheError(ValueError):
     message: str
 
     def __init__(self, message: str) -> None:
@@ -34,13 +34,16 @@ class InvalidExpressionError(AquicheError):
         super().__init__(message=f"Invalid expression '{expression}': {error_message} at position {position}")
 
 
-class AquicheValueError(ValueError):
-    pass
-
-
-class InvalidTimeFormatError(AquicheValueError):
+class InvalidTimeFormatError(AquicheError):
     def __init__(self, value: Any) -> None:
         super().__init__(
             f"Invalid cache expiration value '{value}': "
             + "it does not resolve to either datetime or timedelta, try to choose different format"
+        )
+
+
+class ExtractionError(AquicheError):
+    def __init__(self, attribute_path: Any) -> None:
+        super().__init__(
+            f"Unable to extract value from an object, path does not point to any valid value: {attribute_path}"
         )

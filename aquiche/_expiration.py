@@ -6,7 +6,7 @@ from typing import Any, Union
 from aquiche import errors
 from aquiche._core import AsyncFunction, CachedValue, SyncFunction
 from aquiche.utils._async_utils import awaitify
-from aquiche.utils._attr_utils import rgetattr
+from aquiche.utils._extraction_utils import extract_from_obj
 from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
 
 
@@ -27,9 +27,14 @@ class AsyncCacheExpiration(metaclass=ABCMeta):
         ...
 
 
+def _validate_sync_expiration(cache_expiration: Union[CacheExpiration, AsyncCacheExpiration], value: Any) -> None:
+    if isinstance(cache_expiration, AsyncCacheExpiration):
+        raise ValueError(f"Invalid cache expiration value '{value}': it resolves to async expiration")
+
+
 class NonExpiringCacheExpiration(CacheExpiration):
     def is_value_expired(self, value: CachedValue) -> bool:
-        return False
+        return value.last_fetched is None
 
 
 class DateCacheExpiration(CacheExpiration):
@@ -53,7 +58,7 @@ class RefreshingCacheExpiration(CacheExpiration):
 
     def __init__(self, refresh_interval: timedelta) -> None:
         super().__init__()
-        self.refresh_interval = refresh_interval
+        self.__refresh_interval = refresh_interval
 
     def is_value_expired(self, value: CachedValue) -> bool:
         if value.last_fetched is None:
@@ -69,9 +74,9 @@ class SyncAttributeCacheExpiration(CacheExpiration):
         self.attribute_path = attribute_path.strip().lstrip("$.")
 
     def is_value_expired(self, value: CachedValue) -> bool:
-        expiry_value = rgetattr(obj=value.value, attr=self.attribute_path)
+        expiry_value = extract_from_obj(obj=value.value, attribute_path=self.attribute_path)
         cache_expiration = get_cache_expiration(expiry_value)
-        __validate_sync_expiration(cache_expiration=cache_expiration, value=value)
+        _validate_sync_expiration(cache_expiration=cache_expiration, value=value)
         return cache_expiration.is_value_expired(value)  # type: ignore
 
 
@@ -85,7 +90,7 @@ class SyncFuncCacheExpiration(CacheExpiration):
     def is_value_expired(self, value: CachedValue) -> bool:
         expiry_value = self.__func(__get_cache_func_value(value))
         cache_expiration = get_cache_expiration(expiry_value)
-        __validate_sync_expiration(cache_expiration=cache_expiration, value=value)
+        _validate_sync_expiration(cache_expiration=cache_expiration, value=value)
         return cache_expiration.is_value_expired(value)  # type: ignore
 
 
@@ -97,7 +102,7 @@ class AsyncAttributeCacheExpiration(AsyncCacheExpiration):
         self.attribute_path = attribute_path.strip().lstrip("$.")
 
     async def is_value_expired(self, value: CachedValue) -> bool:
-        expiry_value = rgetattr(obj=value.value, attr=self.attribute_path)
+        expiry_value = extract_from_obj(obj=value.value, attribute_path=self.attribute_path)
         cache_expiration = get_cache_expiration(expiry_value)
         if isinstance(cache_expiration, CacheExpiration):
             return cache_expiration.is_value_expired(value)
@@ -176,8 +181,3 @@ def __get_cache_expiration_from_str(value: str, prefer_async: bool) -> Union[Cac
         return RefreshingCacheExpiration(refresh_interval=parsed_value)
 
     raise errors.InvalidTimeFormatError(value)
-
-
-def __validate_sync_expiration(cache_expiration: Union[CacheExpiration, AsyncCacheExpiration], value: Any) -> None:
-    if isinstance(cache_expiration, AsyncCacheExpiration):
-        raise ValueError(f"Invalid cache expiration value '{value}': it resolves to async expiration")
