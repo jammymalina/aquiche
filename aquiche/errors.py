@@ -13,8 +13,17 @@ class AquicheValueError(AquicheError, ValueError):
     pass
 
 
+class AquicheTypeError(AquicheError, ValueError):
+    pass
+
+
 class AquicheRuntimeError(AquicheError, RuntimeError):
     pass
+
+
+class InvalidExpirationType(AquicheTypeError):
+    def __init__(self) -> None:
+        super().__init__("Unsupported cache expiration type")
 
 
 class DateError(AquicheValueError):
@@ -55,6 +64,11 @@ class ExtractionError(AquicheValueError):
         super().__init__(
             f"Unable to extract value from an object, path does not point to any valid value: {attribute_path}"
         )
+
+
+class InvalidSyncExpirationType(AquicheValueError):
+    def __init__(self, value: Any) -> None:
+        super().__init__(f"Invalid cache expiration value '{value}': it resolves to async expiration")
 
 
 class DeadlockError(AquicheRuntimeError):
