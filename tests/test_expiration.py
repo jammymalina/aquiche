@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -313,10 +313,18 @@ async def test_async_attribute_cache_expiration_async(mocker: MockerFixture, val
     "value,result",
     [
         # Refreshing cache expiration
+        (30, RefreshingCacheExpiration(refresh_interval=timedelta(seconds=30))),
+        ("30", RefreshingCacheExpiration(refresh_interval=timedelta(seconds=30))),
+        ("15:30", RefreshingCacheExpiration(refresh_interval=timedelta(minutes=15, seconds=30))),
+        ("10:15:30", RefreshingCacheExpiration(refresh_interval=timedelta(hours=10, minutes=15, seconds=30))),
+        ("4 15:30", RefreshingCacheExpiration(refresh_interval=timedelta(days=4, minutes=15, seconds=30))),
+        ("4 10:15:30", RefreshingCacheExpiration(refresh_interval=timedelta(days=4, hours=10, minutes=15, seconds=30))),
         (432000, RefreshingCacheExpiration(refresh_interval=timedelta(days=5))),
         ("5days", RefreshingCacheExpiration(refresh_interval=timedelta(days=5))),
+        ("P5D", RefreshingCacheExpiration(refresh_interval=timedelta(days=5))),
         ("100s 10m", RefreshingCacheExpiration(refresh_interval=timedelta(seconds=100, minutes=10))),
         ("100 seconds 10 minutes", RefreshingCacheExpiration(refresh_interval=timedelta(seconds=100, minutes=10))),
+        (timedelta(days=1, hours=8), RefreshingCacheExpiration(refresh_interval=timedelta(days=1, hours=8))),
         # Date
         (
             1641021310,
@@ -330,8 +338,23 @@ async def test_async_attribute_cache_expiration_async(mocker: MockerFixture, val
             "2022-01-01T07:15:10.000Z",
             DateCacheExpiration(datetime(year=2022, month=1, day=1, hour=7, minute=15, second=10, tzinfo=timezone.utc)),
         ),
+        (
+            datetime(year=2022, month=1, day=1, hour=7, minute=15, second=10, tzinfo=timezone.utc),
+            DateCacheExpiration(datetime(year=2022, month=1, day=1, hour=7, minute=15, second=10, tzinfo=timezone.utc)),
+        ),
+        (
+            date(year=2022, month=1, day=1),
+            DateCacheExpiration(datetime(year=2022, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc)),
+        ),
+        (
+            time(hour=10, minute=30, second=11, tzinfo=timezone.utc),
+            DateCacheExpiration(
+                datetime(year=2022, month=9, day=30, hour=10, minute=30, second=11, tzinfo=timezone.utc)
+            ),
+        ),
     ],
 )
+@pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
 def test_get_expiration_simple_values(value: Any, result: CacheExpiration) -> None:
     """It should get cache expiration from the simple value"""
     cache_expiration = get_cache_expiration(value)

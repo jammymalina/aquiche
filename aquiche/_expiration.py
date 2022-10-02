@@ -173,12 +173,14 @@ class AsyncFuncCacheExpiration(AsyncCacheExpiration):
 
 
 def get_cache_expiration(
-    value: Union[int, float, str, bytes], prefer_async: bool = True
+    value: Union[int, float, str, bytes, date, datetime, time, timedelta], prefer_async: bool = True
 ) -> Union[CacheExpiration, AsyncCacheExpiration]:
     if isinstance(value, (float, int)):
         return __get_cache_expiration_from_num(value)
     if isinstance(value, (str, bytes)):
         return __get_cache_expiration_from_str(value=value.strip(), prefer_async=prefer_async)
+    if isinstance(value, (date, datetime, time, timedelta)):
+        return __get_cache_expiration_from_time(value)
     if iscoroutine(value):
         return AsyncFuncCacheExpiration(value)
     if callable(value):
@@ -207,8 +209,8 @@ def __get_cache_expiration_from_str(
             else SyncAttributeCacheExpiration(attribute_path=value)
         )
 
-    parsed_value = None
-    parse_functions = (parse_datetime, parse_date, parse_time, parse_duration)
+    parsed_value: Any = None
+    parse_functions = (parse_duration, parse_datetime, parse_date, parse_time)
     for parse_function in parse_functions:
         try:
             parsed_value = parse_function(value)
@@ -219,17 +221,23 @@ def __get_cache_expiration_from_str(
     if parsed_value is None:
         raise errors.InvalidTimeFormatError(value)
 
-    if isinstance(parsed_value, datetime):
-        return DateCacheExpiration(expiry_date=parsed_value)
+    return __get_cache_expiration_from_time(parsed_value)
 
-    if isinstance(parsed_value, date):
-        return DateCacheExpiration(expiry_date=datetime.combine(parsed_value, datetime.min.time(), tzinfo=timezone.utc))
 
-    if isinstance(parsed_value, time):
-        return DateCacheExpiration(expiry_date=datetime.combine(date.today(), parsed_value))
+def __get_cache_expiration_from_time(
+    value: Union[date, datetime, time, timedelta]
+) -> Union[CacheExpiration, AsyncCacheExpiration]:
+    if isinstance(value, datetime):
+        return DateCacheExpiration(expiry_date=value)
 
-    if isinstance(parsed_value, timedelta):
-        return RefreshingCacheExpiration(refresh_interval=parsed_value)
+    if isinstance(value, date):
+        return DateCacheExpiration(expiry_date=datetime.combine(value, datetime.min.time(), tzinfo=timezone.utc))
+
+    if isinstance(value, time):
+        return DateCacheExpiration(expiry_date=datetime.combine(date.today(), value))
+
+    if isinstance(value, timedelta):
+        return RefreshingCacheExpiration(refresh_interval=value)
 
     raise errors.InvalidTimeFormatError(value)
 
