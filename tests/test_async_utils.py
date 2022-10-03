@@ -1,3 +1,5 @@
+import asyncio
+
 from aquiche.utils._async_utils import awaitify
 
 
@@ -14,6 +16,14 @@ async def test_awaitify_sync() -> None:
     async_sum = awaitify(sync_sum_function)
     result = await async_sum(10, 12)
     assert result == 22
+
+
+async def test_awaitify_task() -> None:
+    """It should transform awaitable task to async function"""
+    task = asyncio.create_task(async_sum_function(32, 12))
+    async_sum = awaitify(task)
+    result = await async_sum()
+    assert result == 44
 
 
 async def test_awaitify_async() -> None:

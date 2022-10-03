@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
-from asyncio import iscoroutine
+from asyncio import iscoroutinefunction
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Union
+from typing import Any, Callable, Coroutine, Union
 
 from aquiche import errors
 from aquiche._core import AsyncFunction, CachedValue, SyncFunction
@@ -29,7 +29,7 @@ class AsyncCacheExpiration(metaclass=ABCMeta):
 
 def _validate_sync_expiration(cache_expiration: Union[CacheExpiration, AsyncCacheExpiration], value: Any) -> None:
     if isinstance(cache_expiration, AsyncCacheExpiration):
-        if iscoroutine(value) or callable(value):
+        if (iscoroutinefunction(value) or callable(value)) and hasattr(value, "__name__"):
             value = value.__name__
 
         raise errors.InvalidSyncExpirationType(value)
@@ -153,7 +153,7 @@ class AsyncAttributeCacheExpiration(AsyncCacheExpiration):
 class AsyncFuncCacheExpiration(AsyncCacheExpiration):
     __func: AsyncFunction
 
-    def __init__(self, func: Union[SyncFunction, AsyncFunction]) -> None:
+    def __init__(self, func: Union[SyncFunction, AsyncFunction, Coroutine]) -> None:
         super().__init__()
         self.__func = awaitify(func)
 
@@ -173,7 +173,8 @@ class AsyncFuncCacheExpiration(AsyncCacheExpiration):
 
 
 def get_cache_expiration(
-    value: Union[int, float, str, bytes, date, datetime, time, timedelta], prefer_async: bool = True
+    value: Union[int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable],
+    prefer_async: bool = True,
 ) -> Union[CacheExpiration, AsyncCacheExpiration]:
     if isinstance(value, (float, int)):
         return __get_cache_expiration_from_num(value)
@@ -181,7 +182,7 @@ def get_cache_expiration(
         return __get_cache_expiration_from_str(value=value.strip(), prefer_async=prefer_async)
     if isinstance(value, (date, datetime, time, timedelta)):
         return __get_cache_expiration_from_time(value)
-    if iscoroutine(value):
+    if iscoroutinefunction(value):
         return AsyncFuncCacheExpiration(value)
     if callable(value):
         return AsyncFuncCacheExpiration(value) if prefer_async else SyncFuncCacheExpiration(value)

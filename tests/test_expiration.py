@@ -1,4 +1,5 @@
 from datetime import date, datetime, time, timedelta, timezone
+import re
 from typing import Any
 
 import pytest
@@ -253,7 +254,10 @@ def test_sync_func_cache_expiration_invalid_sync_type(mocker: MockerFixture, val
     with pytest.raises(errors.InvalidSyncExpirationType) as err_info:
         cache_expiration = SyncFuncCacheExpiration(func=lambda _: async_func)
         cache_expiration.is_value_expired(value)
-    assert str(err_info.value) == "Invalid cache expiration value '_execute_mock_call': it resolves to async expiration"
+    assert (
+        re.match(r"^Invalid cache expiration value '.*'\: it resolves to async expiration$", str(err_info.value))
+        is not None
+    )
 
 
 @pytest.mark.parametrize(
@@ -304,8 +308,9 @@ async def test_async_attribute_cache_expiration(value: CachedValue, result: bool
 @pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
 async def test_async_attribute_cache_expiration_async(mocker: MockerFixture, value: CachedValue) -> None:
     """It should refresh the value based on the result of the async function"""
-    async_func = mocker.AsyncMock(return_value=432000)
-    cache_expiration = AsyncFuncCacheExpiration(func=async_func)
+    async_mock = mocker.AsyncMock(return_value=432000)
+    cache_expiration = AsyncFuncCacheExpiration(func=async_mock)
+
     assert await cache_expiration.is_value_expired(value)
 
 
@@ -359,3 +364,32 @@ def test_get_expiration_simple_values(value: Any, result: CacheExpiration) -> No
     """It should get cache expiration from the simple value"""
     cache_expiration = get_cache_expiration(value)
     assert cache_expiration == result
+
+
+@pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
+def test_get_attribute_expiration() -> None:
+    """It should return sync attribute expiration when preferred async is set to False and async one when it is set to True, default is async"""
+    sync_expiration = get_cache_expiration("$.data.nested.expiration", prefer_async=False)
+    async_expiration = get_cache_expiration("$.data.nested.expiration", prefer_async=True)
+    default_expiration = get_cache_expiration("$.data.nested.expiration")
+
+    assert isinstance(sync_expiration, SyncAttributeCacheExpiration)
+    assert isinstance(async_expiration, AsyncAttributeCacheExpiration)
+    assert isinstance(default_expiration, AsyncAttributeCacheExpiration)
+
+
+@pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
+def test_get_async_func_expiration(mocker: MockerFixture) -> None:
+    """It should always get async func expiration when async function is passed"""
+
+    async def get_async_expiration() -> int:
+        return 42
+
+    async_mock = mocker.AsyncMock(return_value=30)
+    cache_expiration_a = get_cache_expiration(async_mock, prefer_async=True)
+    cache_expiration_b = get_cache_expiration(async_mock, prefer_async=False)
+    cache_expiration_c = get_cache_expiration(get_async_expiration, prefer_async=False)
+
+    assert isinstance(cache_expiration_a, AsyncFuncCacheExpiration)
+    assert isinstance(cache_expiration_b, AsyncFuncCacheExpiration)
+    assert isinstance(cache_expiration_c, AsyncFuncCacheExpiration)
