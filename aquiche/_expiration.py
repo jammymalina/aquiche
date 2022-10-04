@@ -30,7 +30,7 @@ class AsyncCacheExpiration(metaclass=ABCMeta):
 def _validate_sync_expiration(cache_expiration: Union[CacheExpiration, AsyncCacheExpiration], value: Any) -> None:
     if isinstance(cache_expiration, AsyncCacheExpiration):
         if (iscoroutinefunction(value) or callable(value)) and hasattr(value, "__name__"):
-            value = value.__name__
+            value = str(value.__name__)
 
         raise errors.InvalidSyncExpirationType(value)
 
