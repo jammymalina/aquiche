@@ -26,6 +26,11 @@ class InvalidExpirationType(AquicheTypeError):
         super().__init__("Unsupported cache expiration type")
 
 
+class InvalidAsyncExitStackWrapperType(AquicheTypeError):
+    def __init__(self) -> None:
+        super().__init__("Unsupported async exit stack wrapper - it should be either bool or list of strings")
+
+
 class DateError(AquicheValueError):
     def __init__(self, value: Any) -> None:
         super().__init__(message=f"Invalid date format: {value}")
@@ -62,7 +67,7 @@ class InvalidTimeFormatError(AquicheValueError):
 class ExtractionError(AquicheValueError):
     def __init__(self, attribute_path: Any) -> None:
         super().__init__(
-            f"Unable to extract value from an object, path does not point to any valid value: {attribute_path}"
+            f"Unable to extract value from an object, path does not point to any valid value: {attribute_path!r}"
         )
 
 

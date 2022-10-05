@@ -3,12 +3,13 @@ from datetime import datetime, timezone
 import random
 from typing import Any, Optional, Tuple, Union
 
-from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo
 from aquiche import errors
+from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo
 from aquiche._expiration import AsyncCacheExpiration, CacheExpiration, NonExpiringCacheExpiration
+from aquiche.utils._async_utils import AsyncWrapperMixin
 
 
-class AsyncCachedRecord:
+class AsyncCachedRecord(AsyncWrapperMixin):
     __lock: Lock
     __get_function: AsyncFunction
     __get_exec_info: CacheTaskExecutionInfo
@@ -55,32 +56,55 @@ class AsyncCachedRecord:
 
         return self.__cached_value.value
 
+    async def destroy(self) -> None:
+        if self.__cached_value.last_fetched is None:
+            return
+
+        if self.__cached_value.exit_stack is not None:
+            await self.__cached_value.exit_stack.aclose()
+            self.__cached_value.exit_stack = None
+
+        self.__cached_value.destroy_value()
+
     async def __store_cache(self) -> None:
         if self.__cached_value.inflight is None:
             raise errors.DeadlockError()
-        value, is_error = await self.__execute_task()
+        value, is_successful = await self.__execute_task()
 
         async with self.__lock:
+            await self.destroy()
             event = self.__cached_value.inflight
-            self.__cached_value.value = value
             self.__cached_value.last_fetched = datetime.now(timezone.utc)
             self.__cached_value.inflight = None
+            if is_successful:
+                value, is_successful = await self.__safe_wrap_exit_stack(value)
+            self.__cached_value.value = value
             event.set()
 
-        if is_error and self.__get_exec_info.fail:
+        if not is_successful and self.__get_exec_info.fail:
             raise value
 
     async def __execute_task(self) -> Tuple[Any, bool]:
         retry_iter = 0
         while True:
             try:
-                return (await self.__get_function(), False)
+                return (await self.__get_function(), True)
             except Exception as err:
                 if retry_iter >= self.__get_exec_info.retries:
-                    return err, True
+                    return err, False
 
                 if self.__get_exec_info.backoff_in_seconds != 0:
                     sleep_seconds = self.__get_exec_info.backoff_in_seconds * 2**retry_iter + random.uniform(0, 1)
                     await asleep(sleep_seconds)
 
                 retry_iter += 1
+
+    async def __safe_wrap_exit_stack(self, value: Any) -> Tuple[Any, bool]:
+        try:
+            exit_stack, value = await self.wrap_async_exit_stack(
+                value=value, wrap_config=self.__get_exec_info.wrap_async_exit_stack
+            )
+            self.__cached_value.exit_stack = exit_stack
+            return value, True
+        except Exception as err:
+            return err, False

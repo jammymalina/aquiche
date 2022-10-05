@@ -9,6 +9,8 @@ from aquiche.utils._async_utils import awaitify
 from aquiche.utils._extraction_utils import extract_from_obj
 from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
 
+CacheExpirationValue = Union[int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable]
+
 
 def _get_cache_func_value(cached_value: CachedValue) -> dict:
     assert cached_value.last_fetched is not None
@@ -91,7 +93,7 @@ class SyncAttributeCacheExpiration(CacheExpiration):
 
     def __init__(self, attribute_path: str) -> None:
         super().__init__()
-        self.__attribute_path = attribute_path.strip().lstrip("$.")
+        self.__attribute_path = attribute_path.strip()
 
     @property
     def attribute_path(self) -> str:
@@ -133,7 +135,7 @@ class AsyncAttributeCacheExpiration(AsyncCacheExpiration):
 
     def __init__(self, attribute_path: str) -> None:
         super().__init__()
-        self.__attribute_path = attribute_path.strip().lstrip("$.")
+        self.__attribute_path = attribute_path.strip()
 
     @property
     def attribute_path(self) -> str:
@@ -173,7 +175,7 @@ class AsyncFuncCacheExpiration(AsyncCacheExpiration):
 
 
 def get_cache_expiration(
-    value: Union[int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable],
+    value: CacheExpirationValue,
     prefer_async: bool = True,
 ) -> Union[CacheExpiration, AsyncCacheExpiration]:
     if isinstance(value, (float, int)):
