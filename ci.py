@@ -19,7 +19,7 @@ def run_black_check() -> int:
 def run_pylint_check() -> int:
     exit_code = 0
     try:
-        run_pylint(["--rcfile=.pylintrc", "aquiche"])
+        run_pylint(["--fail-under=9", "--rcfile=.pylintrc", "aquiche"])
     except SystemExit as exc:
         exit_code = exc.code
 
