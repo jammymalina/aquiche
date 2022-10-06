@@ -10,6 +10,7 @@ from aquiche.utils._extraction_utils import extract_from_obj
 from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
 
 CacheExpirationValue = Union[int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable]
+DurationExpirationValue = Union[str, bytes, int, float, timedelta]
 
 
 def _get_cache_func_value(cached_value: CachedValue) -> dict:

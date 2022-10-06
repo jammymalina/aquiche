@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 
 
 class AquicheError(Exception):
@@ -26,9 +26,9 @@ class InvalidExpirationType(AquicheTypeError):
         super().__init__("Unsupported cache expiration type")
 
 
-class InvalidAsyncExitStackWrapperType(AquicheTypeError):
-    def __init__(self) -> None:
-        super().__init__("Unsupported async exit stack wrapper - it should be either bool or list of strings")
+class InvalidCacheConfig(AquicheTypeError):
+    def __init__(self, errors: List[str]) -> None:
+        super().__init__(f"Invalid cache params - {', '.join(errors)}")
 
 
 class DateError(AquicheValueError):

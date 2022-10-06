@@ -3,7 +3,6 @@ from contextlib import AsyncExitStack
 from inspect import isawaitable
 from typing import Any, Coroutine, List, Optional, Tuple, Union
 
-from aquiche import errors
 from aquiche._core import AsyncFunction, SyncFunction
 from aquiche.utils._extraction_utils import extract_from_obj, set_value_obj
 
@@ -36,11 +35,6 @@ class AsyncWrapperMixin:
     async def wrap_async_exit_stack(
         self, value: Any, wrap_config: Union[bool, List[str]]
     ) -> Tuple[Optional[AsyncExitStack], Any]:
-        if not isinstance(wrap_config, (bool, list)) or (
-            isinstance(wrap_config, list) and not all((isinstance(wrapper, str) for wrapper in wrap_config))
-        ):
-            raise errors.InvalidAsyncExitStackWrapperType()
-
         exit_stack = AsyncExitStack()
         try:
             if isinstance(wrap_config, bool):
