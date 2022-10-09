@@ -8,6 +8,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.8"
+typing-extensions = { version = "^4.4", python = "<3.10" }
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.1"

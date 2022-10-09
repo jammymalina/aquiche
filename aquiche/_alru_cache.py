@@ -1,12 +1,21 @@
 from dataclasses import asdict, dataclass
 from datetime import timedelta
 from functools import update_wrapper
+import sys
 from threading import RLock
-from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, Union, get_args
+from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union, get_args
+
+if sys.version_info < (3, 10):
+    from typing_extensions import ParamSpec
+else:
+    from typing import ParamSpec
 
 from aquiche.errors import InvalidCacheConfig
 from aquiche._hash import make_key
 from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
+
+T = TypeVar("T")
+P = ParamSpec("P")
 
 
 @dataclass
@@ -26,13 +35,10 @@ class CacheParameters:
     wrap_async_exit_stack: Union[bool, List[str]] = False
 
 
-class AquicheSyncWrappedFunction(Protocol):
-    cache_info: Callable[..., CacheInfo]
-    cache_clear: Callable[..., None]
-    cache_parameters: Callable[..., CacheParameters]
-
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        ...
+class AquicheFunctionWrapper:
+    cache_info: Callable[[], CacheInfo]
+    cache_clear: Callable[[], None]
+    cache_parameters: Callable[[], CacheParameters]
 
 
 def __extract_type_names(types: Tuple[Any, ...]) -> str:
@@ -40,7 +46,7 @@ def __extract_type_names(types: Tuple[Any, ...]) -> str:
 
 
 def __validate_cache_params(
-    enabled: Union[bool, Callable],
+    enabled: Union[bool, Callable[[], bool]],
     maxsize: int,
     expiration: Optional[CacheExpirationValue],
     expiration_check_inter: DurationExpirationValue,
@@ -72,13 +78,13 @@ def __validate_cache_params(
 
 
 def alru_cache(
-    __func: Optional[Callable],
-    enabled: Union[bool, Callable] = True,
+    __func: Optional[Callable[P, T]],
+    enabled: Union[bool, Callable[[], bool]] = True,
     maxsize: int = 128,
     expiration: Optional[CacheExpirationValue] = None,
     expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str]] = False,
-):
+) -> Union[Callable[P, T], Callable[[Callable[P, T]], Callable[P, T]]]:
     __validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
@@ -106,7 +112,7 @@ def alru_cache(
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
         return update_wrapper(wrapper, user_function)
 
-    def decorating_function(user_function: Callable) -> Callable:
+    def decorating_function(user_function: Callable[P, T]):
         wrapper = _lru_cache_wrapper(
             user_function,
             **asdict(cache_params),
@@ -118,13 +124,13 @@ def alru_cache(
 
 
 def _lru_cache_wrapper(
-    user_function: Callable,
-    enabled: Union[bool, Callable] = True,
+    user_function: Callable[P, T],
+    enabled: Union[bool, Callable[[], bool]] = True,
     maxsize: int = 128,
     expiration: Optional[CacheExpirationValue] = None,
     expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str]] = False,
-) -> AquicheSyncWrappedFunction:
+) -> Callable[P, T]:
     # Constants shared by all lru cache instances:
     sentinel = object()  # unique object used to signal cache misses
     PREV, NEXT, KEY, RESULT = 0, 1, 2, 3  # names for the link fields
@@ -145,9 +151,9 @@ def _lru_cache_wrapper(
             return enabled()
         return enabled
 
-    if __is_cache_enabled():
+    if not __is_cache_enabled():
 
-        def wrapper(*args, **kwds):
+        def wrapper(*args, **kwds) -> T:
             # No caching -- just a statistics update
             nonlocal misses
             misses += 1
@@ -156,7 +162,7 @@ def _lru_cache_wrapper(
 
     elif maxsize is None:
 
-        def wrapper(*args, **kwds):
+        def wrapper(*args, **kwds) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
             key = make_key(args, kwds)
@@ -171,7 +177,7 @@ def _lru_cache_wrapper(
 
     else:
 
-        def wrapper(*args, **kwds) -> Any:
+        def wrapper(*args, **kwds) -> T:
             # Size limited caching that tracks accesses by recency
             nonlocal root, hits, misses, full
             key = make_key(args, kwds)
