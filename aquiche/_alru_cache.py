@@ -3,7 +3,7 @@ from datetime import timedelta
 from functools import update_wrapper
 import sys
 from threading import RLock
-from typing import Any, Callable, Dict, List, Optional, Tuple, TypeVar, Union, get_args
+from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, TypeVar, Union, get_args
 
 if sys.version_info < (3, 10):
     from typing_extensions import ParamSpec
@@ -16,6 +16,7 @@ from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
 
 T = TypeVar("T")
 P = ParamSpec("P")
+C = TypeVar("C", bound=Callable)
 
 
 @dataclass
@@ -35,10 +36,12 @@ class CacheParameters:
     wrap_async_exit_stack: Union[bool, List[str]] = False
 
 
-class AquicheFunctionWrapper:
+class AquicheFunctionWrapper(Protocol[C]):
     cache_info: Callable[[], CacheInfo]
     cache_clear: Callable[[], None]
     cache_parameters: Callable[[], CacheParameters]
+
+    __call__: C
 
 
 def __extract_type_names(types: Tuple[Any, ...]) -> str:
@@ -84,7 +87,7 @@ def alru_cache(
     expiration: Optional[CacheExpirationValue] = None,
     expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str]] = False,
-) -> Union[Callable[P, T], Callable[[Callable[P, T]], Callable[P, T]]]:
+) -> Union[AquicheFunctionWrapper[Callable[P, T]], Callable[[Callable[P, T]], AquicheFunctionWrapper[Callable[P, T]]]]:
     __validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
@@ -130,7 +133,7 @@ def _lru_cache_wrapper(
     expiration: Optional[CacheExpirationValue] = None,
     expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str]] = False,
-) -> Callable[P, T]:
+) -> AquicheFunctionWrapper[Callable[P, T]]:
     # Constants shared by all lru cache instances:
     sentinel = object()  # unique object used to signal cache misses
     PREV, NEXT, KEY, RESULT = 0, 1, 2, 3  # names for the link fields
