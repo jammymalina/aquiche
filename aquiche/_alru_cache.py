@@ -1,9 +1,9 @@
 from dataclasses import asdict, dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import update_wrapper
 import sys
 from threading import RLock
-from typing import Any, Callable, Dict, List, Optional, Protocol, Tuple, TypeVar, Union, get_args
+from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, Union, get_args
 
 if sys.version_info < (3, 10):
     from typing_extensions import ParamSpec
@@ -11,8 +11,9 @@ else:
     from typing import ParamSpec
 
 from aquiche.errors import InvalidCacheConfig
-from aquiche._hash import make_key
 from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
+from aquiche._hash import make_key
+from aquiche._repository import CacheRepository, LRUCacheRepository
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -25,6 +26,7 @@ class CacheInfo:
     misses: int = 0
     maxsize: Optional[int] = None
     current_size: int = 0
+    last_expiration_check: Optional[datetime] = None
 
 
 @dataclass
@@ -50,7 +52,7 @@ def __extract_type_names(types: Tuple[Any, ...]) -> str:
 
 def __validate_cache_params(
     enabled: Union[bool, Callable[[], bool]],
-    maxsize: int,
+    maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expiration_check_inter: DurationExpirationValue,
     wrap_async_exit_stack: Union[bool, List[str]],
@@ -58,8 +60,8 @@ def __validate_cache_params(
     errors = []
     if not isinstance(enabled, (bool)) or callable(enabled):
         errors += ["enabled should be either bool or a callable function"]
-    if not isinstance(maxsize, int):
-        errors += ["maxsize should be int"]
+    if maxsize is not None and not isinstance(maxsize, int):
+        errors += ["maxsize should be int or None"]
     if not isinstance(expiration, get_args(CacheExpirationValue)):
         errors += [f"expiration should be one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"]
     if not isinstance(expiration_check_inter, get_args(DurationExpirationValue)):
@@ -83,7 +85,7 @@ def __validate_cache_params(
 def alru_cache(
     __func: Optional[Callable[P, T]],
     enabled: Union[bool, Callable[[], bool]] = True,
-    maxsize: int = 128,
+    maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
     expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str]] = False,
@@ -102,8 +104,9 @@ def alru_cache(
         expiration_check_inter=expiration_check_inter,
         wrap_async_exit_stack=wrap_async_exit_stack,
     )
-    # Negative maxsize is treated as 0
-    maxsize = max(maxsize, 0)
+    if maxsize is not None:
+        # Negative maxsize is treated as 0
+        maxsize = max(maxsize, 0)
 
     if callable(__func):
         # The user_function was passed in directly via the hidden __func argument
@@ -128,24 +131,17 @@ def alru_cache(
 
 def _lru_cache_wrapper(
     user_function: Callable[P, T],
-    enabled: Union[bool, Callable[[], bool]] = True,
-    maxsize: int = 128,
-    expiration: Optional[CacheExpirationValue] = None,
-    expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
-    wrap_async_exit_stack: Union[bool, List[str]] = False,
+    enabled: Union[bool, Callable[[], bool]],
+    maxsize: Optional[int],
+    expiration: Optional[CacheExpirationValue],
+    expiration_check_inter: Union[str, bytes, int, float, timedelta],
+    wrap_async_exit_stack: Union[bool, List[str]],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
-    # Constants shared by all lru cache instances:
     sentinel = object()  # unique object used to signal cache misses
-    PREV, NEXT, KEY, RESULT = 0, 1, 2, 3  # names for the link fields
 
-    cache: Dict = {}
+    cache: CacheRepository = LRUCacheRepository()
     hits = misses = 0
-    full = False
-    cache_get = cache.get  # bound method to lookup a key or return None
-    cache_len = cache.__len__  # get cache size without calling len()
-    lock = RLock()  # because linkedlist updates aren't threadsafe
-    root: List = []  # root of the circular doubly linked list
-    root[:] = [root, root, None, None]  # initialize by pointing to self
+    lock = RLock()  # because cache updates aren't thread-safe
 
     def __is_cache_enabled() -> bool:
         if maxsize == 0:
@@ -169,87 +165,43 @@ def _lru_cache_wrapper(
             # Simple caching without ordering or size limit
             nonlocal hits, misses
             key = make_key(args, kwds)
-            result = cache_get(key, sentinel)
+            result = cache.get_no_adjust(key=key, default_value=sentinel)
             if result is not sentinel:
                 hits += 1
                 return result
             misses += 1
             result = user_function(*args, **kwds)
-            cache[key] = result
+            cache.add_no_adjust(key, result)
             return result
 
     else:
 
         def wrapper(*args, **kwds) -> T:
             # Size limited caching that tracks accesses by recency
-            nonlocal root, hits, misses, full
+            nonlocal hits, misses
             key = make_key(args, kwds)
             with lock:
-                link = cache_get(key)
-                if link is not None:
-                    # Move the link to the front of the circular queue
-                    link_prev, link_next, _key, result = link
-                    link_prev[NEXT] = link_next
-                    link_next[PREV] = link_prev
-                    last = root[PREV]
-                    last[NEXT] = root[PREV] = link
-                    link[PREV] = last
-                    link[NEXT] = root
+                result = cache.get(key)
+                if result is not None:
                     hits += 1
                     return result
                 misses += 1
             result = user_function(*args, **kwds)
             with lock:
-                if key in cache:
-                    # Getting here means that this same key was added to the
-                    # cache while the lock was released.  Since the link
-                    # update is already done, we need only return the
-                    # computed result and update the count of misses.
-                    pass
-                elif full:
-                    # Use the old root to store the new key and result.
-                    oldroot = root
-                    oldroot[KEY] = key
-                    oldroot[RESULT] = result
-                    # Empty the oldest link and make it the new root.
-                    # Keep a reference to the old key and old result to
-                    # prevent their ref counts from going to zero during the
-                    # update. That will prevent potentially arbitrary object
-                    # clean-up code (i.e. __del__) from running while we're
-                    # still adjusting the links.
-                    root = oldroot[NEXT]
-                    oldkey = root[KEY]
-                    oldresult = root[RESULT]
-                    root[KEY] = root[RESULT] = None
-                    # Now update the cache dictionary.
-                    del cache[oldkey]
-                    # Save the potentially reentrant cache[key] assignment
-                    # for last, after the root and links have been put in
-                    # a consistent state.
-                    cache[key] = oldroot
-                else:
-                    # Put result in a new link at the front of the queue.
-                    last = root[PREV]
-                    link = [last, root, key, result]
-                    last[NEXT] = root[PREV] = cache[key] = link
-                    # Use the cache_len bound method instead of the len() function
-                    # which could potentially be wrapped in an lru_cache itself.
-                    full = cache_len() >= maxsize
+                cache.add(key=key, value=result)
             return result
 
     def cache_info():
         """Report cache statistics"""
         with lock:
-            return CacheInfo(hits=hits, misses=misses, maxsize=maxsize, current_size=cache_len())
+            return CacheInfo(hits=hits, misses=misses, maxsize=maxsize, current_size=cache.get_size())
 
     def cache_clear():
         """Clear the cache and cache statistics"""
-        nonlocal hits, misses, full
+        nonlocal cache, hits, misses
         with lock:
             cache.clear()
-            root[:] = [root, root, None, None]
             hits = misses = 0
-            full = False
 
     wrapper.cache_info = cache_info  # type: ignore
     wrapper.cache_clear = cache_clear  # type: ignore
