@@ -35,8 +35,8 @@ class CacheParameters:
     enabled: Union[bool, Callable] = False
     maxsize: Optional[int] = None
     expiration: Optional[CacheExpirationValue] = None
-    expiration_check_inter: DurationExpirationValue = 0
-    wrap_async_exit_stack: Optional[Union[bool, List[str]]] = None
+    expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
+    wrap_async_exit_stack: Union[bool, List[str], None] = None
 
 
 class AquicheFunctionWrapper(Protocol[C]):
@@ -55,8 +55,8 @@ def __validate_cache_params(
     enabled: Union[bool, Callable[[], bool]],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
-    expiration_check_inter: DurationExpirationValue,
-    wrap_async_exit_stack: Optional[Union[bool, List[str]]],
+    expired_items_auto_removal_period: Optional[DurationExpirationValue],
+    wrap_async_exit_stack: Union[bool, List[str], None],
 ) -> None:
     errors = []
     if not isinstance(enabled, (bool)) or callable(enabled):
@@ -65,9 +65,12 @@ def __validate_cache_params(
         errors += ["maxsize should be int or None"]
     if not isinstance(expiration, get_args(CacheExpirationValue)):
         errors += [f"expiration should be one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"]
-    if not isinstance(expiration_check_inter, get_args(DurationExpirationValue)):
+    if not (
+        expired_items_auto_removal_period is None
+        or isinstance(expired_items_auto_removal_period, get_args(DurationExpirationValue))
+    ):
         errors += [
-            "expiration_check_inter should be one of these types:"
+            "expired_items_auto_removal_period should be either None or one of these types:"
             + __extract_type_names(get_args(DurationExpirationValue))
         ]
     if not (
@@ -89,21 +92,21 @@ def alru_cache(
     enabled: Union[bool, Callable[[], bool]] = True,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
-    expiration_check_inter: Union[str, bytes, int, float, timedelta] = "10minutes",
-    wrap_async_exit_stack: Optional[Union[bool, List[str]]] = None,
+    expired_items_auto_removal_period: Optional[DurationExpirationValue] = "10minutes",
+    wrap_async_exit_stack: Union[bool, List[str], None] = None,
 ) -> Union[AquicheFunctionWrapper[Callable[P, T]], Callable[[Callable[P, T]], AquicheFunctionWrapper[Callable[P, T]]]]:
     __validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
         expiration=expiration,
-        expiration_check_inter=expiration_check_inter,
+        expired_items_auto_removal_period=expired_items_auto_removal_period,
         wrap_async_exit_stack=wrap_async_exit_stack,
     )
     cache_params = CacheParameters(
         enabled=enabled,
         maxsize=maxsize,
         expiration=expiration,
-        expiration_check_inter=expiration_check_inter,
+        expired_items_auto_removal_period=expired_items_auto_removal_period,
         wrap_async_exit_stack=wrap_async_exit_stack,
     )
     if maxsize is not None:
@@ -148,8 +151,8 @@ def _sync_lru_cache_wrapper(
     enabled: Union[bool, Callable[[], bool]],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
-    expiration_check_inter: Union[str, bytes, int, float, timedelta],
-    wrap_async_exit_stack: Optional[Union[bool, List[str]]],
+    expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
+    wrap_async_exit_stack: Union[bool, List[str], None],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     if wrap_async_exit_stack:
         raise InvalidCacheConfig(["wrap_async_exit_stack can only ne used with async functions"])
@@ -232,8 +235,8 @@ def _async_lru_cache_wrapper(
     enabled: Union[bool, Callable[[], bool]],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
-    expiration_check_inter: Union[str, bytes, int, float, timedelta],
-    wrap_async_exit_stack: Optional[Union[bool, List[str]]],
+    expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
+    wrap_async_exit_stack: Union[bool, List[str], None],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     sentinel = object()  # unique object used to signal cache misses
 

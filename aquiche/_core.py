@@ -18,11 +18,13 @@ class CachedValue:
     inflight: Optional[Event] = None
     value: Any = None
     exit_stack: Optional[AsyncExitStack] = None
+    is_error: bool = False
 
     def destroy_value(self) -> None:
         self.last_fetched = None
         self.value = None
         self.exit_stack = None
+        self.is_error = False
 
 
 class AsyncFunction(Protocol):

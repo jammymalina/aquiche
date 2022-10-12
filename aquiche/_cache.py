@@ -1,12 +1,66 @@
 from asyncio import Lock, Event, sleep as asleep
 from datetime import datetime, timezone
 import random
+from time import sleep
 from typing import Any, Optional, Tuple, Union
 
 from aquiche import errors
-from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo
+from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo, SyncFunction
 from aquiche._expiration import AsyncCacheExpiration, CacheExpiration, NonExpiringCacheExpiration
 from aquiche.utils._async_utils import AsyncWrapperMixin
+
+
+class SyncCachedRecord:
+    __get_function: SyncFunction
+    __get_exec_info: CacheTaskExecutionInfo
+    __cached_value: CachedValue
+    __expiration: CacheExpiration
+
+    def __init__(
+        self,
+        get_function: SyncFunction,
+        get_exec_info: Optional[CacheTaskExecutionInfo] = None,
+        expiration: Optional[CacheExpiration] = None,
+    ) -> None:
+        self.__get_function = get_function
+        self.__get_exec_info = get_exec_info or CacheTaskExecutionInfo()
+        self.__cached_value = CachedValue()
+        self.__expiration = expiration or NonExpiringCacheExpiration()
+
+    def get_cached(self) -> Any:
+        if self.__cached_value.last_fetched is not None:
+            is_expired = self.__expiration.is_value_expired(self.__cached_value)
+            if not is_expired:
+                return self.__cached_value.value
+
+            self.__store_cache()
+
+            return self.__cached_value.value
+
+    def __store_cache(self) -> None:
+        value, is_successful = self.__execute_task()
+
+        self.__cached_value.last_fetched = datetime.now(timezone.utc)
+        self.__cached_value.value = value
+        self.__cached_value.is_error = not is_successful
+
+        if not is_successful and self.__get_exec_info.fail:
+            raise value
+
+    def __execute_task(self) -> Tuple[Any, bool]:
+        retry_iter = 0
+        while True:
+            try:
+                return (self.__get_function(), True)
+            except Exception as err:
+                if retry_iter >= self.__get_exec_info.retries:
+                    return err, False
+
+                if self.__get_exec_info.backoff_in_seconds != 0:
+                    sleep_seconds = self.__get_exec_info.backoff_in_seconds * 2**retry_iter + random.uniform(0, 1)
+                    sleep(sleep_seconds)
+
+                retry_iter += 1
 
 
 class AsyncCachedRecord(AsyncWrapperMixin):
@@ -20,7 +74,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         self,
         get_function: AsyncFunction,
         get_exec_info: Optional[CacheTaskExecutionInfo] = None,
-        expiration: Optional[CacheExpiration] = None,
+        expiration: Union[AsyncCacheExpiration, CacheExpiration, None] = None,
     ) -> None:
         self.__lock = Lock()
         self.__get_function = get_function
@@ -79,6 +133,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
             if is_successful:
                 value, is_successful = await self.__safe_wrap_exit_stack(value)
             self.__cached_value.value = value
+            self.__cached_value.is_error = not is_successful
             event.set()
 
         if not is_successful and self.__get_exec_info.fail:
