@@ -37,6 +37,9 @@ class CacheParameters:
     expiration: Optional[CacheExpirationValue] = None
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
     wrap_async_exit_stack: Union[bool, List[str], None] = None
+    negative_cache: bool = False
+    retry_count: int = 0
+    backoff_in_seconds: Union[int, float] = 0
 
 
 class AquicheFunctionWrapper(Protocol[C]):
@@ -57,6 +60,9 @@ def __validate_cache_params(
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
     wrap_async_exit_stack: Union[bool, List[str], None],
+    negative_cache: bool,
+    retry_count: int,
+    backoff_in_seconds: Union[int, float],
 ) -> None:
     errors = []
     if not isinstance(enabled, (bool)) or callable(enabled):
@@ -83,6 +89,13 @@ def __validate_cache_params(
     ):
         errors += ["wrap_async_exit_stack should be either None, bool or a callable function"]
 
+    if not isinstance(negative_cache, bool):
+        errors += ["negative_cache should be bool"]
+    if not isinstance(retry_count, int):
+        errors += ["retry_count should be an integer"]
+    if not isinstance(backoff_in_seconds, (int, float)):
+        errors += ["backoff_in_seconds should be a number"]
+
     if errors:
         raise InvalidCacheConfig(errors)
 
@@ -94,6 +107,9 @@ def alru_cache(
     expiration: Optional[CacheExpirationValue] = None,
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str], None] = None,
+    negative_cache: bool = False,
+    retry_count: int = 0,
+    backoff_in_seconds: Union[int, float] = 0,
 ) -> Union[AquicheFunctionWrapper[Callable[P, T]], Callable[[Callable[P, T]], AquicheFunctionWrapper[Callable[P, T]]]]:
     __validate_cache_params(
         enabled=enabled,
@@ -101,6 +117,9 @@ def alru_cache(
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
         wrap_async_exit_stack=wrap_async_exit_stack,
+        negative_cache=negative_cache,
+        retry_count=retry_count,
+        backoff_in_seconds=backoff_in_seconds,
     )
     cache_params = CacheParameters(
         enabled=enabled,
@@ -108,10 +127,15 @@ def alru_cache(
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
         wrap_async_exit_stack=wrap_async_exit_stack,
+        negative_cache=negative_cache,
+        retry_count=retry_count,
+        backoff_in_seconds=backoff_in_seconds,
     )
     if maxsize is not None:
         # Negative maxsize is treated as 0
         maxsize = max(maxsize, 0)
+    # Negative retry count is treated as 0
+    retry_count = max(retry_count, 0)
 
     if callable(__func):
         # The user_function was passed in directly via the hidden __func argument
@@ -153,6 +177,9 @@ def _sync_lru_cache_wrapper(
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
     wrap_async_exit_stack: Union[bool, List[str], None],
+    negative_cache: bool,
+    retry_count: int,
+    backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     if wrap_async_exit_stack:
         raise InvalidCacheConfig(["wrap_async_exit_stack can only ne used with async functions"])
@@ -173,7 +200,8 @@ def _sync_lru_cache_wrapper(
     if not __is_cache_enabled():
 
         def wrapper(*args, **kwds) -> T:
-            # No caching -- just a statistics update
+            # No caching -- just a statistics update and potential cleanup
+            # TODO: Cleanup
             nonlocal misses
             misses += 1
             result = user_function(*args, **kwds)
@@ -229,7 +257,6 @@ def _sync_lru_cache_wrapper(
     return wrapper  # type: ignore
 
 
-# TODO
 def _async_lru_cache_wrapper(
     user_function: Callable[P, T],
     enabled: Union[bool, Callable[[], bool]],
@@ -237,6 +264,9 @@ def _async_lru_cache_wrapper(
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
     wrap_async_exit_stack: Union[bool, List[str], None],
+    negative_cache: bool,
+    retry_count: int,
+    backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     sentinel = object()  # unique object used to signal cache misses
 

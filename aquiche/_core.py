@@ -8,10 +8,18 @@ from typing import Any, Awaitable, List, Optional, Protocol, Union
 class CacheTaskExecutionInfo:
     fail: bool = True
     retries: int = 0
-    backoff_in_seconds: int = 0
+    backoff_in_seconds: Union[int, float] = 0
     wrap_async_exit_stack: Union[bool, List[str]] = False
 
 
+@dataclass
+class CachedItem:
+    value: Any
+    last_fetched: datetime
+    is_error: bool
+
+
+# Internal cached value
 @dataclass
 class CachedValue:
     last_fetched: Optional[datetime] = None

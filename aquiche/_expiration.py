@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Callable, Coroutine, Union
 
 from aquiche import errors
-from aquiche._core import AsyncFunction, CachedValue, SyncFunction
+from aquiche._core import AsyncFunction, CachedValue, CachedItem, SyncFunction
 from aquiche.utils._async_utils import awaitify
 from aquiche.utils._extraction_utils import extract_from_obj
 from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
@@ -13,9 +13,9 @@ CacheExpirationValue = Union[int, float, str, bytes, date, datetime, time, timed
 DurationExpirationValue = Union[str, bytes, int, float, timedelta]
 
 
-def _get_cache_func_value(cached_value: CachedValue) -> dict:
+def _get_cache_func_value(cached_value: CachedValue) -> CachedItem:
     assert cached_value.last_fetched is not None
-    return {"value": cached_value.value, "last_fetched": cached_value.last_fetched}
+    return CachedItem(value=cached_value.value, last_fetched=cached_value.last_fetched, is_error=cached_value.is_error)
 
 
 class CacheExpiration(metaclass=ABCMeta):
