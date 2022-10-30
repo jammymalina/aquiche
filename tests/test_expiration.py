@@ -233,7 +233,7 @@ def test_sync_attribute_cache_expiration_invalid_path(value: CachedValue) -> Non
 def test_sync_func_cache_expiration(value: CachedValue, result: bool) -> None:
     """It should expire the cache based on the result of the function"""
     cache_expiration = SyncFuncCacheExpiration(
-        func=lambda cache_value: cache_value["value"]["data"]["nested"]["expiration"]
+        func=lambda cache_value: cache_value.value["data"]["nested"]["expiration"]
     )
     assert cache_expiration.is_value_expired(value) == result
 
