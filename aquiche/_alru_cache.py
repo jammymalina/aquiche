@@ -61,7 +61,7 @@ def __parse_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -
 
 
 def alru_cache(
-    __func: Optional[Callable[P, T]],
+    __func: Optional[Callable[P, T]] = None,
     enabled: Union[bool, Callable[[], bool]] = True,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
@@ -71,7 +71,7 @@ def alru_cache(
     negative_expiration: Optional[CacheExpirationValue] = "30s",
     retry_count: int = 0,
     backoff_in_seconds: Union[int, float] = 0,
-) -> Union[AquicheFunctionWrapper[Callable[P, T]], Callable[[Callable[P, T]], AquicheFunctionWrapper[Callable[P, T]]]]:
+) -> AquicheFunctionWrapper[Callable[P, T]]:
     validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
@@ -130,7 +130,7 @@ def alru_cache(
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
         return update_wrapper(wrapper, user_function)
 
-    return decorating_function
+    return decorating_function  # type: ignore
 
 
 def _sync_lru_cache_wrapper(
@@ -153,7 +153,7 @@ def _sync_lru_cache_wrapper(
     cache: CacheRepository = LRUCacheRepository(maxsize=maxsize)
     hits = misses = 0
     lock = RLock()  # because cache updates aren't thread-safe
-    last_expiration_check = datetime.now(timezone.utc)
+    last_expiration_check = datetime.fromtimestamp(0, tz=timezone.utc)
     expiry_period = __parse_duration_to_timedelta(expired_items_auto_removal_period)
 
     def __is_cache_enabled() -> bool:
@@ -202,7 +202,7 @@ def _sync_lru_cache_wrapper(
             record = record = SyncCachedRecord(
                 get_function=partial(user_function, *args, **kwargs),
                 get_exec_info=CacheTaskExecutionInfo(
-                    fail=negative_cache,
+                    fail=not negative_cache,
                     retries=retry_count,
                     backoff_in_seconds=backoff_in_seconds,
                     wrap_async_exit_stack=False,
@@ -238,7 +238,7 @@ def _sync_lru_cache_wrapper(
             record = SyncCachedRecord(
                 get_function=partial(user_function, *args, **kwargs),
                 get_exec_info=CacheTaskExecutionInfo(
-                    fail=negative_cache,
+                    fail=not negative_cache,
                     retries=retry_count,
                     backoff_in_seconds=backoff_in_seconds,
                     wrap_async_exit_stack=False,
@@ -336,7 +336,7 @@ def _async_lru_cache_wrapper(
             # Simple caching without ordering or size limit
             nonlocal hits, misses
             key = make_key(*args, **kwargs)
-            result = cache.get_no_adjust(key=key, default_value=sentinel)
+            result = cache.get_no_adjust(key, default_value=sentinel)
             if result is not sentinel:
                 hits += 1
                 return result

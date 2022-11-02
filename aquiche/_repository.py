@@ -86,7 +86,7 @@ class LRUCacheRepository(CacheRepository):
             # prevent their ref counts from going to zero during the
             # update. That will prevent potentially arbitrary object
             # clean-up code (i.e. __del__) from running while we're
-            # still adjusting the links.
+            # still adjusting the links
             root = old_root[self.NEXT]
             old_key = root[self.KEY]
             root[self.KEY] = root[self.RESULT] = None
@@ -94,7 +94,7 @@ class LRUCacheRepository(CacheRepository):
             del self.__cache[old_key]
             # Save the potentially reentrant cache[key] assignment
             # for last, after the root and links have been put in
-            # a consistent state.
+            # a consistent state
             self.__cache[key] = old_root
             self.__root = root
         else:
@@ -103,28 +103,34 @@ class LRUCacheRepository(CacheRepository):
             link = [last, self.__root, key, value]
             last[self.NEXT] = self.__root[self.PREV] = self.__cache[key] = link
             # Use the cache_len bound method instead of the len() function
-            # which could potentially be wrapped in an lru_cache itself.
+            # which could potentially be wrapped in an lru_cache itself
             self.__full = (self.__maxsize != 0) and self.get_size() >= self.__maxsize
 
     def get(self, key: str) -> Optional[Any]:
         link = self.__cache.get(key)
-        if link is not None:
-            # Move the link to the front of the circular queue
-            link_prev, link_next, _key, result = link
-            link_prev[self.NEXT] = link_next
-            link_next[self.PREV] = link_prev
-            last = self.__root[self.PREV]
-            last[self.NEXT] = self.__root[self.PREV] = link
-            link[self.PREV] = last
-            link[self.NEXT] = self.__root
-            return result
-        return None
+        if link is None:
+            return None
+        # Move the link to the front of the circular queue
+        link_prev, link_next, _key, result = link
+        link_prev[self.NEXT] = link_next
+        link_next[self.PREV] = link_prev
+        last = self.__root[self.PREV]
+        last[self.NEXT] = self.__root[self.PREV] = link
+        link[self.PREV] = last
+        link[self.NEXT] = self.__root
+        return result
 
     def get_no_adjust(self, key, default_value: Optional[Any] = None) -> Any:
-        return self.__cache.get(key, default_value)
+        link = self.__cache.get(key)
+        if link is None:
+            return default_value
+        return link[self.RESULT]
 
     def add_no_adjust(self, key: str, value: Any) -> None:
-        self.__cache[key] = value
+        last = self.__root[self.PREV]
+        link = [last, self.__root, key, value]
+        last[self.NEXT] = self.__root[self.PREV] = self.__cache[key] = link
+        self.__full = (self.__maxsize != 0) and self.get_size() >= self.__maxsize
 
     def filter(self, condition: Callable[[str, Any], bool]) -> List[Any]:
         removed_items = []

@@ -43,11 +43,8 @@ class SyncCachedRecord:
 
         return self.__cached_value.value
 
-    def destroy_expired(self) -> bool:
-        if not self.is_expired():
-            return False
+    def destroy(self) -> None:
         self.__cached_value.destroy_value()
-        return True
 
     def is_expired(self) -> bool:
         if self.__cached_value.last_fetched is None:
