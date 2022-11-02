@@ -38,7 +38,7 @@ def validate_cache_params(
         errors += ["enabled should be either bool or a callable function"]
     if maxsize is not None and not isinstance(maxsize, int):
         errors += ["maxsize should be int or None"]
-    if not isinstance(expiration, get_args(CacheExpirationValue)):
+    if not (expiration is None or isinstance(expiration, get_args(CacheExpirationValue))):
         errors += [f"expiration should be one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"]
     if not isinstance(negative_expiration, get_args(CacheExpirationValue)):
         errors += [

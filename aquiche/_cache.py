@@ -36,18 +36,26 @@ class SyncCachedRecord:
 
     def get_cached(self) -> Any:
         if self.__cached_value.last_fetched is not None:
-            if not self.__is_expired():
+            if not self.is_expired():
                 return self.__cached_value.value
 
-            self.__store_cache()
+        self.__store_cache()
 
-            return self.__cached_value.value
+        return self.__cached_value.value
 
     def destroy_expired(self) -> bool:
-        if not self.__is_expired():
+        if not self.is_expired():
             return False
         self.__cached_value.destroy_value()
         return True
+
+    def is_expired(self) -> bool:
+        if self.__cached_value.last_fetched is None:
+            return False
+        if self.__cached_value.is_error:
+            return self.__negative_expiration.is_value_expired(self.__cached_value)
+
+        return self.__expiration.is_value_expired(self.__cached_value)
 
     def __validate_expirations(
         self,
@@ -63,14 +71,6 @@ class SyncCachedRecord:
         if len(error_messages) > 0:
             raise errors.InvalidCacheConfig(error_messages)
         return expiration, negative_expiration  # type: ignore
-
-    def __is_expired(self) -> bool:
-        if self.__cached_value.last_fetched is None:
-            return False
-        if self.__cached_value.is_error:
-            return self.__negative_expiration.is_value_expired(self.__cached_value)
-
-        return self.__expiration.is_value_expired(self.__cached_value)
 
     def __store_cache(self) -> None:
         value, is_successful = self.__execute_task()
@@ -125,7 +125,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         await self.__lock.acquire()
 
         if self.__cached_value.last_fetched is not None:
-            if not await self.__is_expired():
+            if not await self.is_expired():
                 self.__lock.release()
                 return self.__cached_value.value
 
@@ -153,7 +153,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
 
         self.__cached_value.destroy_value()
 
-    async def __is_expired(self) -> bool:
+    async def is_expired(self) -> bool:
         if self.__cached_value.last_fetched is None:
             return False
 

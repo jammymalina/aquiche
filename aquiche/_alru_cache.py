@@ -1,10 +1,10 @@
 from asyncio import iscoroutinefunction
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from functools import partial, update_wrapper
 import sys
 from threading import RLock
-from typing import Any, Callable, List, Optional, Protocol, TypeVar, Union
+from typing import Awaitable, Callable, List, Optional, Protocol, TypeVar, Union
 
 if sys.version_info < (3, 10):
     from typing_extensions import ParamSpec
@@ -24,6 +24,7 @@ from aquiche._expiration import (
 )
 from aquiche._hash import make_key
 from aquiche._repository import CacheRepository, LRUCacheRepository
+from aquiche.utils._time_parse import parse_duration
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -45,8 +46,18 @@ class AquicheFunctionWrapper(Protocol[C]):
     cache_info: Callable[[], CacheInfo]
     cache_clear: Callable[[], None]
     cache_parameters: Callable[[], CacheParameters]
+    remove_expired: Callable[[], Union[None, Awaitable[None]]]
+    destroy: Callable[[], Union[None, Awaitable[None]]]
 
     __call__: C
+
+
+def __parse_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -> Optional[timedelta]:
+    if duration is None:
+        return None
+    if isinstance(duration, timedelta):
+        return duration
+    return parse_duration(duration)
 
 
 def alru_cache(
@@ -135,13 +146,15 @@ def _sync_lru_cache_wrapper(
     backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     if wrap_async_exit_stack:
-        raise InvalidCacheConfig(["wrap_async_exit_stack can only ne used with async functions"])
+        raise InvalidCacheConfig(["wrap_async_exit_stack can only be used with async functions"])
 
     sentinel = object()  # unique object used to signal cache misses
 
     cache: CacheRepository = LRUCacheRepository(maxsize=maxsize)
     hits = misses = 0
     lock = RLock()  # because cache updates aren't thread-safe
+    last_expiration_check = datetime.now(timezone.utc)
+    expiry_period = __parse_duration_to_timedelta(expired_items_auto_removal_period)
 
     def __is_cache_enabled() -> bool:
         if maxsize == 0:
@@ -151,7 +164,17 @@ def _sync_lru_cache_wrapper(
         return enabled
 
     def __remove_expired() -> None:
-        pass
+        nonlocal last_expiration_check
+        last_expiration_check = datetime.now(timezone.utc)
+        removed_items = cache.filter(lambda _key, record: not record.is_expired())
+        for removed_item in removed_items:
+            removed_item.destroy()
+
+    def __schedule_remove_expired() -> None:
+        if expiry_period is None:
+            return
+        if datetime.now(timezone.utc) - last_expiration_check >= expiry_period:
+            __remove_expired()
 
     if not __is_cache_enabled():
 
@@ -168,7 +191,8 @@ def _sync_lru_cache_wrapper(
         def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
-            key = make_key(args, kwargs)
+            __schedule_remove_expired()
+            key = make_key(*args, **kwargs)
             record = cache.get_no_adjust(key=key, default_value=sentinel)
             if record is not sentinel:
                 hits += 1
@@ -203,7 +227,8 @@ def _sync_lru_cache_wrapper(
         def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency
             nonlocal hits, misses
-            key = make_key(args, kwargs)
+            __schedule_remove_expired()
+            key = make_key(*args, **kwargs)
             with lock:
                 result = cache.get(key)
                 if result is not None:
@@ -232,23 +257,42 @@ def _sync_lru_cache_wrapper(
             result = record.get_cached()
             with lock:
                 cache.add(key=key, value=record)
+
             return result
 
-    def cache_info():
+    def cache_info() -> CacheInfo:
         """Report cache statistics"""
         with lock:
-            return CacheInfo(hits=hits, misses=misses, maxsize=maxsize, current_size=cache.get_size())
+            return CacheInfo(
+                hits=hits,
+                misses=misses,
+                maxsize=maxsize,
+                current_size=cache.get_size(),
+                last_expiration_check=last_expiration_check,
+            )
 
-    def cache_clear():
+    def cache_clear() -> None:
         """Clear the cache and cache statistics"""
         nonlocal cache, hits, misses
         with lock:
+            cache.every(lambda _key, value: value.destroy())
             cache.clear()
             hits = misses = 0
+
+    def remove_expired() -> None:
+        """Remove expired items from the cache"""
+        with lock:
+            __remove_expired()
+
+    def destroy() -> None:
+        """Destroys the cache (for sync cache not that relevant)"""
+        cache_clear()
 
     wrapper.cache_info = cache_info  # type: ignore
     wrapper.cache_clear = cache_clear  # type: ignore
     wrapper.cache_parameters = CacheParameters  # type: ignore
+    wrapper.remove_expired = remove_expired  # type: ignore
+    wrapper.destroy = destroy  # type: ignore
     return wrapper  # type: ignore
 
 
@@ -291,7 +335,7 @@ def _async_lru_cache_wrapper(
         def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
-            key = make_key(args, kwargs)
+            key = make_key(*args, **kwargs)
             result = cache.get_no_adjust(key=key, default_value=sentinel)
             if result is not sentinel:
                 hits += 1
@@ -306,7 +350,7 @@ def _async_lru_cache_wrapper(
         def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency
             nonlocal hits, misses
-            key = make_key(args, kwargs)
+            key = make_key(*args, **kwargs)
             with lock:
                 result = cache.get(key)
                 if result is not None:

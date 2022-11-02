@@ -1,5 +1,6 @@
 from abc import ABCMeta, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from asyncio import gather
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 
 class CacheRepository(metaclass=ABCMeta):
@@ -17,6 +18,22 @@ class CacheRepository(metaclass=ABCMeta):
 
     @abstractmethod
     def add_no_adjust(self, key: str, value: Any) -> None:
+        ...
+
+    @abstractmethod
+    def filter(self, condition: Callable[[str, Any], bool]) -> List[Any]:
+        ...
+
+    @abstractmethod
+    async def filter_async(self, condition: Callable[[str, Any], Awaitable[bool]]) -> List[Any]:
+        ...
+
+    @abstractmethod
+    def every(self, apply_function: Callable[[str, Any], None]) -> None:
+        ...
+
+    @abstractmethod
+    async def every_async(self, apply_function: Callable[[str, Any], Awaitable[None]]) -> None:
         ...
 
     @abstractmethod
@@ -91,7 +108,6 @@ class LRUCacheRepository(CacheRepository):
 
     def get(self, key: str) -> Optional[Any]:
         link = self.__cache.get(key)
-        print(self.__cache)
         if link is not None:
             # Move the link to the front of the circular queue
             link_prev, link_next, _key, result = link
@@ -110,32 +126,38 @@ class LRUCacheRepository(CacheRepository):
     def add_no_adjust(self, key: str, value: Any) -> None:
         self.__cache[key] = value
 
-    def filter(self, condition: Callable[[str, Any], bool]) -> None:
-        size = self.get_size()
-        link_index = 0
-        link = self.__root
-        while link_index < size:
-            link_prev, link_next, key, result = link
-            if not condition(key, result):
-                if self.__root == link:
-                    self.__root = link_next
+    def filter(self, condition: Callable[[str, Any], bool]) -> List[Any]:
+        removed_items = []
 
-                link_next[self.PREV] = link_prev
-                link_prev[self.NEXT] = link_next
+        link = self.__root[self.NEXT]
 
-                link[self.KEY] = link[self.RESULT] = None
+        while link is not self.__root:
+            key, value = link[self.NEXT], link[self.RESULT]
+            if not condition(key, value):
+                removed_items.append(self.__delete_node(link))
+            link = link[self.NEXT]
+        return removed_items
 
-                del self.__cache[key]
+    async def filter_async(self, condition: Callable[[str, Any], Awaitable[bool]]) -> List[Any]:
+        removed_items = []
 
-            link = link_next
-            link_index += 1
+        link = self.__root[self.NEXT]
 
-    def every(self, f: Callable[[str, Any], None]) -> None:
-        link = self.__root
-        for _i in range(self.get_size()):
-            _link_prev, link_next, key, result = link
-            f(key, result)
-            link = link_next
+        while link is not self.__root:
+            key, value = link[self.NEXT], link[self.RESULT]
+            if not await condition(key, value):
+                removed_items.append(self.__delete_node(link))
+            link = link[self.NEXT]
+        return removed_items
+
+    def every(self, apply_function: Callable[[str, Any], None]) -> None:
+        for link in self.__cache.values():
+            key, result = link[self.KEY], link[self.RESULT]
+            apply_function(key, result)
+
+    async def every_async(self, apply_function: Callable[[str, Any], Awaitable[None]]) -> None:
+        apply_tasks = (apply_function(link[self.KEY], link[self.RESULT]) for link in self.__cache.values())
+        await gather(*apply_tasks)
 
     def has(self, key: str) -> bool:
         return key in self.__cache
@@ -146,3 +168,18 @@ class LRUCacheRepository(CacheRepository):
 
     def get_size(self) -> int:
         return len(self.__cache)
+
+    def __delete_node(self, link: List) -> Any:
+        link_next, key, result = link[self.NEXT], link[self.KEY], link[self.RESULT]
+        if self.__root is link:
+            self.__root = link_next
+
+        link_iter = self.__root
+        while link_iter[self.NEXT] is not link:
+            link_iter = link_iter[self.NEXT]
+
+        link_iter[self.NEXT] = link_next
+
+        del self.__cache[key]
+
+        return result
