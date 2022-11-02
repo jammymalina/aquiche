@@ -61,25 +61,24 @@ class LRUCacheRepository(CacheRepository):
             pass
         elif self.__full:
             # Use the old root to store the new key and result.
-            oldroot = self.__root
-            oldroot[self.KEY] = key
-            oldroot[self.RESULT] = value
+            old_root = self.__root
+            old_root[self.KEY] = key
+            old_root[self.RESULT] = value
             # Empty the oldest link and make it the new root.
             # Keep a reference to the old key and old result to
             # prevent their ref counts from going to zero during the
             # update. That will prevent potentially arbitrary object
             # clean-up code (i.e. __del__) from running while we're
             # still adjusting the links.
-            root = oldroot[self.NEXT]
-            oldkey = root[self.KEY]
-            _oldresult = root[self.RESULT]
+            root = old_root[self.NEXT]
+            old_key = root[self.KEY]
             root[self.KEY] = root[self.RESULT] = None
             # Now update the cache dictionary.
-            del self.__cache[oldkey]
+            del self.__cache[old_key]
             # Save the potentially reentrant cache[key] assignment
             # for last, after the root and links have been put in
             # a consistent state.
-            self.__cache[key] = oldroot
+            self.__cache[key] = old_root
             self.__root = root
         else:
             # Put result in a new link at the front of the queue.
@@ -109,6 +108,19 @@ class LRUCacheRepository(CacheRepository):
 
     def add_no_adjust(self, key: str, value: Any) -> None:
         self.__cache[key] = value
+
+    def remove(self, key: str) -> None:
+        link = self.__cache.get(key)
+        if link is not None:
+            link_prev, link_next, _key, _result = link
+
+            if self.__root == link:
+                self.__root = link_next
+
+            link_next[self.PREV] = link_prev
+            link_prev[self.NEXT] = link_next
+
+            del self.__cache[key]
 
     def has(self, key: str) -> bool:
         return key in self.__cache

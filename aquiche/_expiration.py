@@ -1,7 +1,7 @@
 from abc import ABCMeta, abstractmethod
 from asyncio import iscoroutinefunction
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Callable, Coroutine, Union
+from typing import Any, Callable, Coroutine, Optional, Union
 
 from aquiche import errors
 from aquiche._core import AsyncFunction, CachedValue, CachedItem, SyncFunction
@@ -176,9 +176,12 @@ class AsyncFuncCacheExpiration(AsyncCacheExpiration):
 
 
 def get_cache_expiration(
-    value: CacheExpirationValue,
+    value: Optional[CacheExpirationValue],
     prefer_async: bool = True,
+    default_expiration: Union[CacheExpiration, AsyncCacheExpiration, None] = None,
 ) -> Union[CacheExpiration, AsyncCacheExpiration]:
+    if value is None:
+        return default_expiration or NonExpiringCacheExpiration()
     if isinstance(value, (float, int)):
         return __get_cache_expiration_from_num(value)
     if isinstance(value, (str, bytes)):

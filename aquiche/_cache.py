@@ -2,11 +2,14 @@ from asyncio import Lock, Event, sleep as asleep
 from datetime import datetime, timezone
 import random
 from time import sleep
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Tuple, Union
 
 from aquiche import errors
 from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo, SyncFunction
-from aquiche._expiration import AsyncCacheExpiration, CacheExpiration, NonExpiringCacheExpiration
+from aquiche._expiration import (
+    AsyncCacheExpiration,
+    CacheExpiration,
+)
 from aquiche.utils._async_utils import AsyncWrapperMixin
 
 
@@ -15,27 +18,59 @@ class SyncCachedRecord:
     __get_exec_info: CacheTaskExecutionInfo
     __cached_value: CachedValue
     __expiration: CacheExpiration
+    __negative_expiration: CacheExpiration
 
     def __init__(
         self,
         get_function: SyncFunction,
-        get_exec_info: Optional[CacheTaskExecutionInfo] = None,
-        expiration: Optional[CacheExpiration] = None,
+        get_exec_info: CacheTaskExecutionInfo,
+        expiration: Union[CacheExpiration, AsyncCacheExpiration],
+        negative_expiration: Union[CacheExpiration, AsyncCacheExpiration],
     ) -> None:
+        expiration, negative_expiration = self.__validate_expirations(expiration, negative_expiration)
         self.__get_function = get_function
-        self.__get_exec_info = get_exec_info or CacheTaskExecutionInfo()
+        self.__get_exec_info = get_exec_info
         self.__cached_value = CachedValue()
-        self.__expiration = expiration or NonExpiringCacheExpiration()
+        self.__expiration = expiration
+        self.__negative_expiration = negative_expiration
 
     def get_cached(self) -> Any:
         if self.__cached_value.last_fetched is not None:
-            is_expired = self.__expiration.is_value_expired(self.__cached_value)
-            if not is_expired:
+            if not self.__is_expired():
                 return self.__cached_value.value
 
             self.__store_cache()
 
             return self.__cached_value.value
+
+    def destroy_expired(self) -> bool:
+        if not self.__is_expired():
+            return False
+        self.__cached_value.destroy_value()
+        return True
+
+    def __validate_expirations(
+        self,
+        expiration: Union[CacheExpiration, AsyncCacheExpiration],
+        negative_expiration: Union[CacheExpiration, AsyncCacheExpiration],
+    ) -> Tuple[CacheExpiration, CacheExpiration]:
+        error_messages = []
+        if isinstance(expiration, AsyncCacheExpiration):
+            error_messages.append('invalid expiration - use values that evaluate to "sync" objects')
+        if isinstance(negative_expiration, AsyncCacheExpiration):
+            error_messages.append('invalid negative expiration - use values that evaluate to "sync" objects')
+
+        if len(error_messages) > 0:
+            raise errors.InvalidCacheConfig(error_messages)
+        return expiration, negative_expiration  # type: ignore
+
+    def __is_expired(self) -> bool:
+        if self.__cached_value.last_fetched is None:
+            return False
+        if self.__cached_value.is_error:
+            return self.__negative_expiration.is_value_expired(self.__cached_value)
+
+        return self.__expiration.is_value_expired(self.__cached_value)
 
     def __store_cache(self) -> None:
         value, is_successful = self.__execute_task()
@@ -69,30 +104,28 @@ class AsyncCachedRecord(AsyncWrapperMixin):
     __get_exec_info: CacheTaskExecutionInfo
     __cached_value: CachedValue
     __expiration: Union[CacheExpiration, AsyncCacheExpiration]
+    __negative_expiration: Union[CacheExpiration, AsyncCacheExpiration]
 
     def __init__(
         self,
         get_function: AsyncFunction,
-        get_exec_info: Optional[CacheTaskExecutionInfo] = None,
-        expiration: Union[AsyncCacheExpiration, CacheExpiration, None] = None,
+        get_exec_info: CacheTaskExecutionInfo,
+        expiration: Union[AsyncCacheExpiration, CacheExpiration],
+        negative_expiration: Union[AsyncCacheExpiration, CacheExpiration],
     ) -> None:
         self.__lock = Lock()
         self.__get_function = get_function
-        self.__get_exec_info = get_exec_info or CacheTaskExecutionInfo()
+        self.__get_exec_info = get_exec_info
         self.__cached_value = CachedValue()
-        self.__expiration = expiration or NonExpiringCacheExpiration()
+        self.__expiration = expiration
+        self.__negative_expiration = negative_expiration
 
     async def get_cached(self) -> Any:
         event = Event()
         await self.__lock.acquire()
 
         if self.__cached_value.last_fetched is not None:
-            is_expired = (
-                await self.__expiration.is_value_expired(self.__cached_value)
-                if isinstance(self.__expiration, AsyncCacheExpiration)
-                else self.__expiration.is_value_expired(self.__cached_value)
-            )
-            if not is_expired:
+            if not await self.__is_expired():
                 self.__lock.release()
                 return self.__cached_value.value
 
@@ -119,6 +152,20 @@ class AsyncCachedRecord(AsyncWrapperMixin):
             self.__cached_value.exit_stack = None
 
         self.__cached_value.destroy_value()
+
+    async def __is_expired(self) -> bool:
+        if self.__cached_value.last_fetched is None:
+            return False
+
+        expiration = None
+        if self.__cached_value.is_error:
+            expiration = self.__negative_expiration
+        else:
+            expiration = self.__expiration
+
+        if isinstance(expiration, AsyncCacheExpiration):
+            return await expiration.is_value_expired(self.__cached_value)
+        return expiration.is_value_expired(self.__cached_value)
 
     async def __store_cache(self) -> None:
         if self.__cached_value.inflight is None:

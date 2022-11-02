@@ -1,24 +1,35 @@
 from asyncio import iscoroutinefunction
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
-from functools import update_wrapper
+from functools import partial, update_wrapper
 import sys
 from threading import RLock
-from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, Union, get_args
+from typing import Any, Callable, List, Optional, Protocol, TypeVar, Union
 
 if sys.version_info < (3, 10):
     from typing_extensions import ParamSpec
 else:
     from typing import ParamSpec
 
+from aquiche._cache import SyncCachedRecord
+from aquiche._cache_params import CacheParameters, validate_cache_params
+from aquiche._core import CacheTaskExecutionInfo
 from aquiche.errors import InvalidCacheConfig
-from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
+from aquiche._expiration import (
+    CacheExpirationValue,
+    DurationExpirationValue,
+    get_cache_expiration,
+    NonExpiringCacheExpiration,
+    RefreshingCacheExpiration,
+)
 from aquiche._hash import make_key
 from aquiche._repository import CacheRepository, LRUCacheRepository
 
 T = TypeVar("T")
 P = ParamSpec("P")
 C = TypeVar("C", bound=Callable)
+
+DEFAULT_NEGATIVE_CACHE_DURATION_SECONDS = 10
 
 
 @dataclass
@@ -30,74 +41,12 @@ class CacheInfo:
     last_expiration_check: Optional[datetime] = None
 
 
-@dataclass
-class CacheParameters:
-    enabled: Union[bool, Callable] = False
-    maxsize: Optional[int] = None
-    expiration: Optional[CacheExpirationValue] = None
-    expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
-    wrap_async_exit_stack: Union[bool, List[str], None] = None
-    negative_cache: bool = False
-    retry_count: int = 0
-    backoff_in_seconds: Union[int, float] = 0
-
-
 class AquicheFunctionWrapper(Protocol[C]):
     cache_info: Callable[[], CacheInfo]
     cache_clear: Callable[[], None]
     cache_parameters: Callable[[], CacheParameters]
 
     __call__: C
-
-
-def __extract_type_names(types: Tuple[Any, ...]) -> str:
-    return "|".join(map(lambda t: t.__name__, types))
-
-
-def __validate_cache_params(
-    enabled: Union[bool, Callable[[], bool]],
-    maxsize: Optional[int],
-    expiration: Optional[CacheExpirationValue],
-    expired_items_auto_removal_period: Optional[DurationExpirationValue],
-    wrap_async_exit_stack: Union[bool, List[str], None],
-    negative_cache: bool,
-    retry_count: int,
-    backoff_in_seconds: Union[int, float],
-) -> None:
-    errors = []
-    if not isinstance(enabled, (bool)) or callable(enabled):
-        errors += ["enabled should be either bool or a callable function"]
-    if maxsize is not None and not isinstance(maxsize, int):
-        errors += ["maxsize should be int or None"]
-    if not isinstance(expiration, get_args(CacheExpirationValue)):
-        errors += [f"expiration should be one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"]
-    if not (
-        expired_items_auto_removal_period is None
-        or isinstance(expired_items_auto_removal_period, get_args(DurationExpirationValue))
-    ):
-        errors += [
-            "expired_items_auto_removal_period should be either None or one of these types:"
-            + __extract_type_names(get_args(DurationExpirationValue))
-        ]
-    if not (
-        wrap_async_exit_stack is None
-        or isinstance(wrap_async_exit_stack, bool)
-        or (
-            isinstance(wrap_async_exit_stack, list)
-            and all((isinstance(wrapper, str) for wrapper in wrap_async_exit_stack))
-        )
-    ):
-        errors += ["wrap_async_exit_stack should be either None, bool or a callable function"]
-
-    if not isinstance(negative_cache, bool):
-        errors += ["negative_cache should be bool"]
-    if not isinstance(retry_count, int):
-        errors += ["retry_count should be an integer"]
-    if not isinstance(backoff_in_seconds, (int, float)):
-        errors += ["backoff_in_seconds should be a number"]
-
-    if errors:
-        raise InvalidCacheConfig(errors)
 
 
 def alru_cache(
@@ -108,16 +57,18 @@ def alru_cache(
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = "10minutes",
     wrap_async_exit_stack: Union[bool, List[str], None] = None,
     negative_cache: bool = False,
+    negative_expiration: Optional[CacheExpirationValue] = "30s",
     retry_count: int = 0,
     backoff_in_seconds: Union[int, float] = 0,
 ) -> Union[AquicheFunctionWrapper[Callable[P, T]], Callable[[Callable[P, T]], AquicheFunctionWrapper[Callable[P, T]]]]:
-    __validate_cache_params(
+    validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
         wrap_async_exit_stack=wrap_async_exit_stack,
         negative_cache=negative_cache,
+        negative_expiration=negative_expiration,
         retry_count=retry_count,
         backoff_in_seconds=backoff_in_seconds,
     )
@@ -128,6 +79,7 @@ def alru_cache(
         expired_items_auto_removal_period=expired_items_auto_removal_period,
         wrap_async_exit_stack=wrap_async_exit_stack,
         negative_cache=negative_cache,
+        negative_expiration=negative_expiration,
         retry_count=retry_count,
         backoff_in_seconds=backoff_in_seconds,
     )
@@ -175,9 +127,10 @@ def _sync_lru_cache_wrapper(
     enabled: Union[bool, Callable[[], bool]],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
-    expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
+    expired_items_auto_removal_period: Optional[DurationExpirationValue],
     wrap_async_exit_stack: Union[bool, List[str], None],
     negative_cache: bool,
+    negative_expiration: Optional[CacheExpirationValue],
     retry_count: int,
     backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
@@ -199,44 +152,83 @@ def _sync_lru_cache_wrapper(
 
     if not __is_cache_enabled():
 
-        def wrapper(*args, **kwds) -> T:
+        def wrapper(*args, **kwargs) -> T:
             # No caching -- just a statistics update and potential cleanup
-            # TODO: Cleanup
-            nonlocal misses
+            nonlocal cache, misses
+            cache.clear()
             misses += 1
-            result = user_function(*args, **kwds)
+            result = user_function(*args, **kwargs)
             return result
 
     elif maxsize is None:
 
-        def wrapper(*args, **kwds) -> T:
+        def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
-            key = make_key(args, kwds)
-            result = cache.get_no_adjust(key=key, default_value=sentinel)
-            if result is not sentinel:
+            key = make_key(args, kwargs)
+            record = cache.get_no_adjust(key=key, default_value=sentinel)
+            if record is not sentinel:
                 hits += 1
+                result = record.get_cached()
                 return result
             misses += 1
-            result = user_function(*args, **kwds)
-            cache.add_no_adjust(key, result)
+            record = record = SyncCachedRecord(
+                get_function=partial(user_function, *args, **kwargs),
+                get_exec_info=CacheTaskExecutionInfo(
+                    fail=negative_cache,
+                    retries=retry_count,
+                    backoff_in_seconds=backoff_in_seconds,
+                    wrap_async_exit_stack=False,
+                ),
+                expiration=get_cache_expiration(
+                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                ),
+                negative_expiration=get_cache_expiration(
+                    negative_expiration,
+                    prefer_async=False,
+                    default_expiration=RefreshingCacheExpiration(
+                        timedelta(seconds=DEFAULT_NEGATIVE_CACHE_DURATION_SECONDS)
+                    ),
+                ),
+            )
+            cache.add_no_adjust(key=key, value=record)
+            result = record.get_cached()
             return result
 
     else:
 
-        def wrapper(*args, **kwds) -> T:
+        def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency
             nonlocal hits, misses
-            key = make_key(args, kwds)
+            key = make_key(args, kwargs)
             with lock:
                 result = cache.get(key)
                 if result is not None:
                     hits += 1
-                    return result
+                    return result.get_cached()
                 misses += 1
-            result = user_function(*args, **kwds)
+            record = SyncCachedRecord(
+                get_function=partial(user_function, *args, **kwargs),
+                get_exec_info=CacheTaskExecutionInfo(
+                    fail=negative_cache,
+                    retries=retry_count,
+                    backoff_in_seconds=backoff_in_seconds,
+                    wrap_async_exit_stack=False,
+                ),
+                expiration=get_cache_expiration(
+                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                ),
+                negative_expiration=get_cache_expiration(
+                    negative_expiration,
+                    prefer_async=False,
+                    default_expiration=RefreshingCacheExpiration(
+                        timedelta(seconds=DEFAULT_NEGATIVE_CACHE_DURATION_SECONDS)
+                    ),
+                ),
+            )
+            result = record.get_cached()
             with lock:
-                cache.add(key=key, value=result)
+                cache.add(key=key, value=record)
             return result
 
     def cache_info():
@@ -265,6 +257,7 @@ def _async_lru_cache_wrapper(
     expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
     wrap_async_exit_stack: Union[bool, List[str], None],
     negative_cache: bool,
+    negative_expiration: Optional[CacheExpirationValue],
     retry_count: int,
     backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
@@ -283,41 +276,41 @@ def _async_lru_cache_wrapper(
 
     if not __is_cache_enabled():
 
-        def wrapper(*args, **kwds) -> T:
+        def wrapper(*args, **kwargs) -> T:
             # No caching -- just a statistics update
             nonlocal misses
             misses += 1
-            result = user_function(*args, **kwds)
+            result = user_function(*args, **kwargs)
             return result
 
     elif maxsize is None:
 
-        def wrapper(*args, **kwds) -> T:
+        def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
-            key = make_key(args, kwds)
+            key = make_key(args, kwargs)
             result = cache.get_no_adjust(key=key, default_value=sentinel)
             if result is not sentinel:
                 hits += 1
                 return result
             misses += 1
-            result = user_function(*args, **kwds)
+            result = user_function(*args, **kwargs)
             cache.add_no_adjust(key, result)
             return result
 
     else:
 
-        def wrapper(*args, **kwds) -> T:
+        def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency
             nonlocal hits, misses
-            key = make_key(args, kwds)
+            key = make_key(args, kwargs)
             with lock:
                 result = cache.get(key)
                 if result is not None:
                     hits += 1
                     return result
                 misses += 1
-            result = user_function(*args, **kwds)
+            result = user_function(*args, **kwargs)
             with lock:
                 cache.add(key=key, value=result)
             return result

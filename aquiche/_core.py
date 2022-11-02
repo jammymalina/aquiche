@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Awaitable, List, Optional, Protocol, Union
 
 
+@dataclass
 class CacheTaskExecutionInfo:
     fail: bool = True
     retries: int = 0
@@ -36,10 +37,10 @@ class CachedValue:
 
 
 class AsyncFunction(Protocol):
-    def __call__(self, *args: Any, **kwds: Any) -> Awaitable[Any]:
+    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[Any]:
         pass
 
 
 class SyncFunction(Protocol):
-    def __call__(self, *args: Any, **kwds: Any) -> Any:
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
         pass

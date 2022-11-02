@@ -32,10 +32,10 @@ def create_tz(minutes):
         ("2012-04-56", errors.DateError),
         (19_999_999_999, date(2603, 10, 11)),  # just before watershed
         (20_000_000_001, date(1970, 8, 20)),  # just after watershed
-        (1_549_316_052, date(2019, 2, 4)),  # nowish in s
-        (1_549_316_052_104, date(2019, 2, 4)),  # nowish in ms
-        (1_549_316_052_104_324, date(2019, 2, 4)),  # nowish in μs
-        (1_549_316_052_104_324_096, date(2019, 2, 4)),  # nowish in ns
+        (1_549_316_052, date(2019, 2, 4)),  # time in s
+        (1_549_316_052_104, date(2019, 2, 4)),  # time in ms
+        (1_549_316_052_104_324, date(2019, 2, 4)),  # time in μs
+        (1_549_316_052_104_324_096, date(2019, 2, 4)),  # time in ns
         ("infinity", date(9999, 12, 31)),
         ("inf", date(9999, 12, 31)),
         (float("inf"), date(9999, 12, 31)),
@@ -124,10 +124,10 @@ def test_time_parsing(value: Any, result: Any) -> None:
         ("2012-04-23T11:05:00-25:00", errors.DateTimeError),
         (19_999_999_999, datetime(2603, 10, 11, 11, 33, 19, tzinfo=timezone.utc)),  # just before watershed
         (20_000_000_001, datetime(1970, 8, 20, 11, 33, 20, 1000, tzinfo=timezone.utc)),  # just after watershed
-        (1_549_316_052, datetime(2019, 2, 4, 21, 34, 12, 0, tzinfo=timezone.utc)),  # nowish in s
-        (1_549_316_052_104, datetime(2019, 2, 4, 21, 34, 12, 104_000, tzinfo=timezone.utc)),  # nowish in ms
-        (1_549_316_052_104_324, datetime(2019, 2, 4, 21, 34, 12, 104_324, tzinfo=timezone.utc)),  # nowish in μs
-        (1_549_316_052_104_324_096, datetime(2019, 2, 4, 21, 34, 12, 104_324, tzinfo=timezone.utc)),  # nowish in ns
+        (1_549_316_052, datetime(2019, 2, 4, 21, 34, 12, 0, tzinfo=timezone.utc)),  # time in s
+        (1_549_316_052_104, datetime(2019, 2, 4, 21, 34, 12, 104_000, tzinfo=timezone.utc)),  # time in ms
+        (1_549_316_052_104_324, datetime(2019, 2, 4, 21, 34, 12, 104_324, tzinfo=timezone.utc)),  # time in μs
+        (1_549_316_052_104_324_096, datetime(2019, 2, 4, 21, 34, 12, 104_324, tzinfo=timezone.utc)),  # time in ns
         ("infinity", datetime(9999, 12, 31, 23, 59, 59, 999999)),
         ("inf", datetime(9999, 12, 31, 23, 59, 59, 999999)),
         ("inf ", datetime(9999, 12, 31, 23, 59, 59, 999999)),
