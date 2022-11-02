@@ -150,6 +150,9 @@ def _sync_lru_cache_wrapper(
             return enabled()
         return enabled
 
+    def __remove_expired() -> None:
+        pass
+
     if not __is_cache_enabled():
 
         def wrapper(*args, **kwargs) -> T:

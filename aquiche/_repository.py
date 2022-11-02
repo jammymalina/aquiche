@@ -1,5 +1,5 @@
 from abc import ABCMeta, abstractmethod
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 
 class CacheRepository(metaclass=ABCMeta):
@@ -82,15 +82,16 @@ class LRUCacheRepository(CacheRepository):
             self.__root = root
         else:
             # Put result in a new link at the front of the queue.
-            last = root[self.PREV]
-            link = [last, root, key, value]
-            last[self.NEXT] = root[self.PREV] = self.__cache[key] = link
+            last = self.__root[self.PREV]
+            link = [last, self.__root, key, value]
+            last[self.NEXT] = self.__root[self.PREV] = self.__cache[key] = link
             # Use the cache_len bound method instead of the len() function
             # which could potentially be wrapped in an lru_cache itself.
-            self.__full = self.get_size() >= self.__maxsize
+            self.__full = (self.__maxsize != 0) and self.get_size() >= self.__maxsize
 
     def get(self, key: str) -> Optional[Any]:
         link = self.__cache.get(key)
+        print(self.__cache)
         if link is not None:
             # Move the link to the front of the circular queue
             link_prev, link_next, _key, result = link
@@ -109,18 +110,32 @@ class LRUCacheRepository(CacheRepository):
     def add_no_adjust(self, key: str, value: Any) -> None:
         self.__cache[key] = value
 
-    def remove(self, key: str) -> None:
-        link = self.__cache.get(key)
-        if link is not None:
-            link_prev, link_next, _key, _result = link
+    def filter(self, condition: Callable[[str, Any], bool]) -> None:
+        size = self.get_size()
+        link_index = 0
+        link = self.__root
+        while link_index < size:
+            link_prev, link_next, key, result = link
+            if not condition(key, result):
+                if self.__root == link:
+                    self.__root = link_next
 
-            if self.__root == link:
-                self.__root = link_next
+                link_next[self.PREV] = link_prev
+                link_prev[self.NEXT] = link_next
 
-            link_next[self.PREV] = link_prev
-            link_prev[self.NEXT] = link_next
+                link[self.KEY] = link[self.RESULT] = None
 
-            del self.__cache[key]
+                del self.__cache[key]
+
+            link = link_next
+            link_index += 1
+
+    def every(self, f: Callable[[str, Any], None]) -> None:
+        link = self.__root
+        for _i in range(self.get_size()):
+            _link_prev, link_next, key, result = link
+            f(key, result)
+            link = link_next
 
     def has(self, key: str) -> bool:
         return key in self.__cache
