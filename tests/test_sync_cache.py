@@ -1,10 +1,20 @@
-from typing import Any
+from typing import Any, Callable
 from unittest.mock import ANY
 
 import pytest
 from pytest_mock import MockerFixture
 
-from aquiche._alru_cache import alru_cache, CacheInfo
+from aquiche._alru_cache import (
+    alru_cache,
+    CacheInfo,
+    clear_all,
+    clear_all_async,
+    clear_all_sync,
+    destroy_all,
+    destroy_all_async,
+    destroy_all_sync,
+)
+from aquiche.errors import InvalidCacheConfig
 
 
 @pytest.mark.freeze_time
@@ -128,7 +138,164 @@ def test_simple_cache_clear(mocker: MockerFixture) -> None:
     assert counter.call_count == 1
 
     cache_function.cache_clear()
+    assert cache_function.cache_info().current_size == 0
+
     cache_function("a")
+
+    assert counter.call_count == 2
+
+
+@pytest.mark.freeze_time
+def test_simple_cache_destroy(mocker: MockerFixture) -> None:
+    """It should destroy the cache - same as clean in the case of the sync cache"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache
+    def cache_function(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    cache_function("a")
+    cache_function("a")
+
+    assert counter.call_count == 1
+
+    cache_function.destroy()
+    cache_function("a")
+
+    assert counter.call_count == 2
+
+
+@pytest.mark.parametrize(
+    "clear_function",
+    [
+        destroy_all,
+        clear_all,
+    ],
+)
+@pytest.mark.freeze_time
+async def test_simple_cache_destroy(mocker: MockerFixture, clear_function: Callable) -> None:
+    """It should destroy all the caches - destroy has nearly identical behavior as clear when it comes to the sync cache"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache
+    def cache_function_a(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    @alru_cache
+    def cache_function_b(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    cache_function_a("a")
+    cache_function_a("a")
+    cache_function_b("b")
+    cache_function_b("b")
+
+    assert counter.call_count == 2
+
+    await clear_function()
+    assert cache_function_a.cache_info().current_size == 0
+    assert cache_function_b.cache_info().current_size == 0
+
+    cache_function_a("a")
+    cache_function_a("a")
+    cache_function_b("b")
+    cache_function_b("b")
+
+    assert counter.call_count == 4
+
+
+@pytest.mark.parametrize(
+    "clear_function",
+    [
+        clear_all_sync,
+        destroy_all_sync,
+    ],
+)
+@pytest.mark.freeze_time
+def test_simple_cache_destroy_sync(mocker: MockerFixture, clear_function: Callable) -> None:
+    """It should destroy or clear all the sync caches"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache
+    def cache_function_a(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    @alru_cache
+    def cache_function_b(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    cache_function_a("a")
+    cache_function_a("a")
+    cache_function_b("b")
+    cache_function_b("b")
+
+    assert cache_function_a.cache_info().current_size == 1
+    assert cache_function_a.cache_info().current_size == 1
+    assert counter.call_count == 2
+
+    clear_function()
+    assert cache_function_a.cache_info().current_size == 0
+    assert cache_function_b.cache_info().current_size == 0
+
+    cache_function_a("a")
+    cache_function_a("a")
+    cache_function_b("b")
+    cache_function_b("b")
+
+    assert counter.call_count == 4
+
+
+@pytest.mark.parametrize(
+    "clear_function",
+    [
+        clear_all_async,
+        destroy_all_async,
+    ],
+)
+@pytest.mark.freeze_time
+async def test_simple_cache_destroy_ignore_sync(mocker: MockerFixture, clear_function: Callable) -> None:
+    """It should not destroy or clear all the sync caches since we are only clearing the async ones"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache
+    def cache_function_a(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    @alru_cache
+    def cache_function_b(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    cache_function_a("a")
+    cache_function_a("a")
+    cache_function_b("b")
+    cache_function_b("b")
+
+    assert cache_function_a.cache_info().current_size == 1
+    assert cache_function_a.cache_info().current_size == 1
+    assert counter.call_count == 2
+
+    await clear_function()
+    assert cache_function_a.cache_info().current_size == 1
+    assert cache_function_b.cache_info().current_size == 1
+
+    cache_function_a("a")
+    cache_function_a("a")
+    cache_function_b("b")
+    cache_function_b("b")
 
     assert counter.call_count == 2
 
@@ -294,7 +461,7 @@ def test_negative_cache_expiry(mocker: MockerFixture, freezer: Any) -> None:
 
 
 @pytest.mark.freeze_time
-def test_retry_cache(mocker: MockerFixture, freezer: Any) -> None:
+def test_retry_cache(mocker: MockerFixture) -> None:
     """It should retry when the function throws an error if retry count is set"""
     counter = mocker.MagicMock(return_value=None)
 
@@ -307,3 +474,15 @@ def test_retry_cache(mocker: MockerFixture, freezer: Any) -> None:
     cache_function("a")
 
     assert counter.call_count == 4
+
+
+@pytest.mark.freeze_time
+def test_invalid_cache_config_wrap_async_exit_stack() -> None:
+    """It should throw an invalid cache error if we try to wrap result in the async exit stack"""
+    with pytest.raises(InvalidCacheConfig) as err_info:
+
+        @alru_cache(wrap_async_exit_stack=True)
+        def _cache_function(_value: str) -> int:
+            raise Exception("Doom has fallen upon us")
+
+    assert str(err_info.value) == "Invalid cache params - wrap_async_exit_stack can only be used with async functions"
