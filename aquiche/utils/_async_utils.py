@@ -1,13 +1,14 @@
 from asyncio import iscoroutinefunction
 from contextlib import AsyncExitStack
 from inspect import isawaitable
-from typing import Any, Coroutine, List, Optional, Tuple, Union
+from typing import Any, Awaitable, Callable, Coroutine, List, Optional, Tuple, Union
 
-from aquiche._core import AsyncFunction, SyncFunction
 from aquiche.utils._extraction_utils import extract_from_obj, set_value_obj
 
 
-def awaitify(func: Union[SyncFunction, AsyncFunction, Coroutine]) -> AsyncFunction:
+def awaitify(
+    func: Union[Callable[..., Any], Callable[..., Awaitable[Any]], Coroutine]
+) -> Callable[..., Awaitable[Any]]:
     if iscoroutinefunction(func) and callable(func):
         return func
 

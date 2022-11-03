@@ -2,10 +2,10 @@ from asyncio import Lock, Event, sleep as asleep
 from datetime import datetime, timezone
 import random
 from time import sleep
-from typing import Any, Tuple, Union
+from typing import Any, Awaitable, Callable, Tuple, Union
 
 from aquiche import errors
-from aquiche._core import AsyncFunction, CachedValue, CacheTaskExecutionInfo, SyncFunction
+from aquiche._core import CachedValue, CacheTaskExecutionInfo
 from aquiche._expiration import (
     AsyncCacheExpiration,
     CacheExpiration,
@@ -14,7 +14,7 @@ from aquiche.utils._async_utils import AsyncWrapperMixin
 
 
 class SyncCachedRecord:
-    __get_function: SyncFunction
+    __get_function: Callable[..., Any]
     __get_exec_info: CacheTaskExecutionInfo
     __cached_value: CachedValue
     __expiration: CacheExpiration
@@ -22,13 +22,13 @@ class SyncCachedRecord:
 
     def __init__(
         self,
-        get_function: SyncFunction,
+        get_function: Callable[..., Any],
         get_exec_info: CacheTaskExecutionInfo,
         expiration: Union[CacheExpiration, AsyncCacheExpiration],
         negative_expiration: Union[CacheExpiration, AsyncCacheExpiration],
     ) -> None:
         expiration, negative_expiration = self.__validate_expirations(expiration, negative_expiration)
-        self.__get_function = get_function
+        self.__get_function = get_function  # type: ignore
         self.__get_exec_info = get_exec_info
         self.__cached_value = CachedValue()
         self.__expiration = expiration
@@ -97,7 +97,7 @@ class SyncCachedRecord:
 
 class AsyncCachedRecord(AsyncWrapperMixin):
     __lock: Lock
-    __get_function: AsyncFunction
+    __get_function: Callable[..., Awaitable[Any]]
     __get_exec_info: CacheTaskExecutionInfo
     __cached_value: CachedValue
     __expiration: Union[CacheExpiration, AsyncCacheExpiration]
@@ -105,13 +105,13 @@ class AsyncCachedRecord(AsyncWrapperMixin):
 
     def __init__(
         self,
-        get_function: AsyncFunction,
+        get_function: Callable[..., Awaitable[Any]],
         get_exec_info: CacheTaskExecutionInfo,
         expiration: Union[AsyncCacheExpiration, CacheExpiration],
         negative_expiration: Union[AsyncCacheExpiration, CacheExpiration],
     ) -> None:
         self.__lock = Lock()
-        self.__get_function = get_function
+        self.__get_function = get_function  # type: ignore
         self.__get_exec_info = get_exec_info
         self.__cached_value = CachedValue()
         self.__expiration = expiration

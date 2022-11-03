@@ -1,4 +1,8 @@
-from asyncio import create_task, Event, gather, iscoroutinefunction, Lock, sleep as asleep
+from asyncio import (
+    gather,
+    iscoroutinefunction,
+    Lock,
+)
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from functools import partial, update_wrapper
@@ -23,6 +27,7 @@ from aquiche._expiration import (
 )
 from aquiche._hash import make_key
 from aquiche._repository import CacheRepository, LRUCacheRepository
+from aquiche.utils._async_utils import awaitify
 from aquiche.utils._time_parse import parse_duration
 from aquiche.utils._singleton import Singleton
 
@@ -42,10 +47,9 @@ class CacheInfo:
 
 class AquicheFunctionWrapper(Protocol[C]):
     cache_info: Union[Callable[..., CacheInfo], Callable[..., Awaitable[CacheInfo]]]
-    cache_clear: Union[Callable[..., None], Callable[..., Awaitable[None]]]
+    clear_cache: Union[Callable[..., None], Callable[..., Awaitable[None]]]
     cache_parameters: Callable[..., CacheParameters]
     remove_expired: Union[Callable[..., None], Callable[..., Awaitable[None]]]
-    destroy: Union[Callable[..., None], Callable[..., Awaitable[None]]]
 
     __call__: C
 
@@ -59,20 +63,10 @@ def __parse_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -
 
 
 class CacheCleanupRegistry(metaclass=Singleton):
-    __destroy_callbacks: List[Union[Callable[..., None], Callable[..., Awaitable[None]]]]
     __clear_callbacks: List[Union[Callable[..., None], Callable[..., Awaitable[None]]]]
 
     def __init__(self) -> None:
-        self.__destroy_callbacks = []
         self.__clear_callbacks = []
-
-    def register_destroy_callback(
-        self, destroy_callback: Union[Callable[..., None], Callable[..., Awaitable[None]]]
-    ) -> None:
-        self.__destroy_callbacks.append(destroy_callback)
-
-    def get_destroy_callbacks(self) -> Iterable[Union[Callable[..., None], Callable[..., Awaitable[None]]]]:
-        return iter(self.__destroy_callbacks)
 
     def register_clear_callback(
         self, clear_callback: Union[Callable[..., None], Callable[..., Awaitable[None]]]
@@ -81,6 +75,14 @@ class CacheCleanupRegistry(metaclass=Singleton):
 
     def get_clear_callbacks(self) -> Iterable[Union[Callable[..., None], Callable[..., Awaitable[None]]]]:
         return iter(self.__clear_callbacks)
+
+    def get_async_callbacks(
+        self, callbacks: Iterable[Union[Callable[..., None], Callable[..., Awaitable[None]]]]
+    ) -> Iterable[Callable[..., Awaitable[None]]]:
+        return (
+            callback_function if iscoroutinefunction(callback_function) else awaitify(callback_function)  # type: ignore
+            for callback_function in callbacks
+        )
 
 
 def alru_cache(
@@ -159,11 +161,8 @@ def alru_cache(
 async def clear_all() -> None:
     cleanup_repository = CacheCleanupRegistry()
 
-    for clear_callback in cleanup_repository.get_clear_callbacks():
-        if iscoroutinefunction(clear_callback):
-            await clear_callback()  # type: ignore
-        else:
-            clear_callback()
+    callback_functions = cleanup_repository.get_async_callbacks(cleanup_repository.get_clear_callbacks())
+    await gather(*(callback_function() for callback_function in callback_functions))
 
 
 def clear_all_sync() -> None:
@@ -172,40 +171,6 @@ def clear_all_sync() -> None:
     for clear_callback in cleanup_repository.get_clear_callbacks():
         if not iscoroutinefunction(clear_callback):
             clear_callback()
-
-
-async def clear_all_async() -> None:
-    cleanup_repository = CacheCleanupRegistry()
-
-    for clear_callback in cleanup_repository.get_clear_callbacks():
-        if iscoroutinefunction(clear_callback):
-            await clear_callback()  # type: ignore
-
-
-async def destroy_all() -> None:
-    cleanup_repository = CacheCleanupRegistry()
-
-    for destroy_callback in cleanup_repository.get_destroy_callbacks():
-        if iscoroutinefunction(destroy_callback):
-            await destroy_callback()  # type: ignore
-        else:
-            destroy_callback()
-
-
-def destroy_all_sync() -> None:
-    cleanup_repository = CacheCleanupRegistry()
-
-    for destroy_callback in cleanup_repository.get_destroy_callbacks():
-        if not iscoroutinefunction(destroy_callback):
-            destroy_callback()
-
-
-async def destroy_all_async() -> None:
-    cleanup_repository = CacheCleanupRegistry()
-
-    for destroy_callback in cleanup_repository.get_destroy_callbacks():
-        if iscoroutinefunction(destroy_callback):
-            await destroy_callback()  # type: ignore
 
 
 def _sync_lru_cache_wrapper(
@@ -248,6 +213,7 @@ def _sync_lru_cache_wrapper(
     def __schedule_remove_expired() -> None:
         if expiry_period is None:
             return
+
         if datetime.now(timezone.utc) - last_expiration_check >= expiry_period:
             __remove_expired()
 
@@ -347,7 +313,7 @@ def _sync_lru_cache_wrapper(
                 last_expiration_check=last_expiration_check,
             )
 
-    def cache_clear() -> None:
+    def clear_cache() -> None:
         """Clear the cache and cache statistics"""
         nonlocal cache, hits, misses
         with lock:
@@ -360,18 +326,12 @@ def _sync_lru_cache_wrapper(
         with lock:
             __remove_expired()
 
-    def destroy() -> None:
-        """Destroys the cache (for sync cache not that relevant)"""
-        cache_clear()
-
-    cleanup_repository.register_destroy_callback(destroy)
-    cleanup_repository.register_clear_callback(cache_clear)
+    cleanup_repository.register_clear_callback(clear_cache)
 
     wrapper.cache_info = cache_info  # type: ignore
-    wrapper.cache_clear = cache_clear  # type: ignore
+    wrapper.clear_cache = clear_cache  # type: ignore
     wrapper.cache_parameters = CacheParameters  # type: ignore
     wrapper.remove_expired = remove_expired  # type: ignore
-    wrapper.destroy = destroy  # type: ignore
     return wrapper  # type: ignore
 
 
@@ -392,10 +352,8 @@ def _async_lru_cache_wrapper(
 
     hits = misses = 0
     lock = Lock()  # because cache updates aren't concurrency-safe
-    destroy_event = Event()
     last_expiration_check = datetime.fromtimestamp(0, tz=timezone.utc)
     expiry_period = __parse_duration_to_timedelta(expired_items_auto_removal_period)
-    expiry_cleanup_task = create_task(__schedule_remove_expired())
 
     def __is_cache_enabled() -> bool:
         if maxsize == 0:
@@ -404,17 +362,17 @@ def _async_lru_cache_wrapper(
             return enabled()
         return enabled
 
-    async def __expiry_record_lambda(_key: str, record: AsyncCachedRecord) -> bool:
-        return await record.is_expired()
+    async def __expiry_filter_lambda(_key: str, record: AsyncCachedRecord) -> bool:
+        return not await record.is_expired()
 
-    async def __destroy_record_lambda(_key: str, record: AsyncCachedRecord) -> None:
+    async def __apply_destroy_lambda(_key: str, record: AsyncCachedRecord) -> None:
         await record.destroy()
 
     async def __remove_expired() -> None:
         nonlocal last_expiration_check
         last_expiration_check = datetime.now(timezone.utc)
 
-        removed_items = await cache.filter_async(__expiry_record_lambda)
+        removed_items: List[AsyncCachedRecord] = await cache.filter_async(__expiry_filter_lambda)
         await gather(*(record.destroy() for record in removed_items))
 
     async def __schedule_remove_expired() -> None:
@@ -423,11 +381,8 @@ def _async_lru_cache_wrapper(
         if expiry_period is None:
             return
 
-        while not destroy_event.is_set():
-            await asleep(expiry_period.total_seconds())
-            async with lock:
-                await __remove_expired()
-                last_expiration_check = datetime.now(timezone.utc)
+        if datetime.now(timezone.utc) - last_expiration_check >= expiry_period:
+            await __remove_expired()
 
     if not __is_cache_enabled():
 
@@ -443,9 +398,12 @@ def _async_lru_cache_wrapper(
         async def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
+
             key = make_key(*args, **kwargs)
 
             async with lock:
+                await __schedule_remove_expired()
+
                 record = cache.get_no_adjust(key)
                 if record is not None:
                     hits += 1
@@ -482,6 +440,8 @@ def _async_lru_cache_wrapper(
             key = make_key(*args, **kwargs)
 
             async with lock:
+                await __schedule_remove_expired()
+
                 result = cache.get(key)
                 if result is not None:
                     hits += 1
@@ -521,11 +481,11 @@ def _async_lru_cache_wrapper(
                 last_expiration_check=last_expiration_check,
             )
 
-    async def cache_clear() -> None:
+    async def clear_cache() -> None:
         """Clear the cache and cache statistics"""
         nonlocal cache, hits, misses
         async with lock:
-            await cache.every_async(__destroy_record_lambda)
+            await cache.every_async(__apply_destroy_lambda)
             cache.clear()
             hits = misses = 0
 
@@ -534,19 +494,10 @@ def _async_lru_cache_wrapper(
         async with lock:
             await __remove_expired()
 
-    async def destroy() -> None:
-        """Destroys the cache"""
-        nonlocal destroy_event, expiry_cleanup_task
-        destroy_event.set()
-        await expiry_cleanup_task
-        await cache_clear()
-
-    cleanup_repository.register_destroy_callback(destroy)
-    cleanup_repository.register_clear_callback(cache_clear)
+    cleanup_repository.register_clear_callback(clear_cache)
 
     wrapper.cache_info = cache_info  # type: ignore
-    wrapper.cache_clear = cache_clear  # type: ignore
+    wrapper.clear_cache = clear_cache  # type: ignore
     wrapper.cache_parameters = CacheParameters  # type: ignore
     wrapper.remove_expired = remove_expired  # type: ignore
-    wrapper.destroy = destroy  # type: ignore
     return wrapper  # type: ignore

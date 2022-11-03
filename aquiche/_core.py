@@ -2,7 +2,7 @@ from asyncio import Event
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Awaitable, List, Optional, Protocol, Union
+from typing import Any, List, Optional, Union
 
 
 @dataclass
@@ -34,13 +34,3 @@ class CachedValue:
         self.value = None
         self.exit_stack = None
         self.is_error = False
-
-
-class AsyncFunction(Protocol):
-    def __call__(self, *args: Any, **kwargs: Any) -> Awaitable[Any]:
-        pass
-
-
-class SyncFunction(Protocol):
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        pass

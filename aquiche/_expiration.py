@@ -1,10 +1,10 @@
 from abc import ABCMeta, abstractmethod
 from asyncio import iscoroutinefunction
 from datetime import date, datetime, time, timedelta, timezone
-from typing import Any, Callable, Coroutine, Optional, Union
+from typing import Any, Awaitable, Callable, Coroutine, Optional, Union
 
 from aquiche import errors
-from aquiche._core import AsyncFunction, CachedValue, CachedItem, SyncFunction
+from aquiche._core import CachedValue, CachedItem
 from aquiche.utils._async_utils import awaitify
 from aquiche.utils._extraction_utils import extract_from_obj
 from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
@@ -111,14 +111,14 @@ class SyncAttributeCacheExpiration(CacheExpiration):
 
 
 class SyncFuncCacheExpiration(CacheExpiration):
-    __func: SyncFunction
+    __func: Callable[..., Any]
 
-    def __init__(self, func: SyncFunction) -> None:
+    def __init__(self, func: Callable[..., Any]) -> None:
         super().__init__()
-        self.__func = func
+        self.__func = func  # type: ignore
 
     @property
-    def func(self) -> SyncFunction:
+    def func(self) -> Callable[..., Any]:
         return self.__func
 
     def is_value_expired(self, value: CachedValue) -> bool:
@@ -154,14 +154,14 @@ class AsyncAttributeCacheExpiration(AsyncCacheExpiration):
 
 
 class AsyncFuncCacheExpiration(AsyncCacheExpiration):
-    __func: AsyncFunction
+    __func: Callable[..., Awaitable[Any]]
 
-    def __init__(self, func: Union[SyncFunction, AsyncFunction, Coroutine]) -> None:
+    def __init__(self, func: Union[Callable[..., Any], Callable[..., Awaitable[Any]], Coroutine]) -> None:
         super().__init__()
-        self.__func = awaitify(func)
+        self.__func = awaitify(func)  # type: ignore
 
     @property
-    def func(self) -> AsyncFunction:
+    def func(self) -> Callable[..., Awaitable[Any]]:
         return self.__func
 
     async def is_value_expired(self, value: CachedValue) -> bool:
