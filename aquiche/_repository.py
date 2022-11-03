@@ -13,7 +13,7 @@ class CacheRepository(metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def get_no_adjust(self, key, default_value: Optional[Any] = None) -> Any:
+    def get_no_adjust(self, key: str) -> Any:
         ...
 
     @abstractmethod
@@ -120,10 +120,10 @@ class LRUCacheRepository(CacheRepository):
         link[self.NEXT] = self.__root
         return result
 
-    def get_no_adjust(self, key, default_value: Optional[Any] = None) -> Any:
+    def get_no_adjust(self, key: str) -> Any:
         link = self.__cache.get(key)
         if link is None:
-            return default_value
+            return None
         return link[self.RESULT]
 
     def add_no_adjust(self, key: str, value: Any) -> None:

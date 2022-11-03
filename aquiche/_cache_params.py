@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Callable, List, Optional, Tuple, Union, get_args
+from typing import Any, List, Optional, Tuple, Union, get_args
 
 from aquiche.errors import InvalidCacheConfig
 from aquiche._expiration import CacheExpirationValue, DurationExpirationValue

@@ -1,4 +1,4 @@
-from asyncio import iscoroutinefunction
+from asyncio import create_task, Event, gather, iscoroutinefunction, Lock, sleep as asleep
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from functools import partial, update_wrapper
@@ -11,7 +11,7 @@ if sys.version_info < (3, 10):
 else:
     from typing import ParamSpec
 
-from aquiche._cache import SyncCachedRecord
+from aquiche._cache import AsyncCachedRecord, SyncCachedRecord
 from aquiche._cache_params import CacheParameters, validate_cache_params
 from aquiche._core import CacheTaskExecutionInfo
 from aquiche.errors import InvalidCacheConfig
@@ -41,11 +41,11 @@ class CacheInfo:
 
 
 class AquicheFunctionWrapper(Protocol[C]):
-    cache_info: Callable[[], CacheInfo]
-    cache_clear: Callable[[], None]
-    cache_parameters: Callable[[], CacheParameters]
-    remove_expired: Callable[[], Union[None, Awaitable[None]]]
-    destroy: Callable[[], Union[None, Awaitable[None]]]
+    cache_info: Union[Callable[..., CacheInfo], Callable[..., Awaitable[CacheInfo]]]
+    cache_clear: Union[Callable[..., None], Callable[..., Awaitable[None]]]
+    cache_parameters: Callable[..., CacheParameters]
+    remove_expired: Union[Callable[..., None], Callable[..., Awaitable[None]]]
+    destroy: Union[Callable[..., None], Callable[..., Awaitable[None]]]
 
     __call__: C
 
@@ -80,7 +80,7 @@ class CacheCleanupRegistry(metaclass=Singleton):
 
 
 def alru_cache(
-    __func: Optional[Callable[P, T]] = None,
+    __func: Optional[Union[Callable[P, T], Callable[P, Awaitable[T]]]] = None,
     enabled: bool = True,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
@@ -90,7 +90,7 @@ def alru_cache(
     negative_expiration: Optional[CacheExpirationValue] = "10 seconds",
     retry_count: int = 0,
     backoff_in_seconds: Union[int, float] = 0,
-) -> AquicheFunctionWrapper[Callable[P, T]]:
+) -> Union[AquicheFunctionWrapper[Callable[P, T]], AquicheFunctionWrapper[Callable[P, Awaitable[T]]]]:
     validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
@@ -133,7 +133,7 @@ def alru_cache(
                 **asdict(cache_params),
             )
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
-        return update_wrapper(wrapper, user_function)
+        return update_wrapper(wrapper, user_function)  # type: ignore
 
     def decorating_function(user_function: Callable[P, T]):
         if iscoroutinefunction(user_function):
@@ -157,7 +157,7 @@ async def clear_all() -> None:
 
     for clear_callback in cleanup_repository.get_clear_callbacks():
         if iscoroutinefunction(clear_callback):
-            await clear_callback()
+            await clear_callback()  # type: ignore
         else:
             clear_callback()
 
@@ -175,7 +175,7 @@ async def clear_all_async() -> None:
 
     for clear_callback in cleanup_repository.get_clear_callbacks():
         if iscoroutinefunction(clear_callback):
-            await clear_callback()
+            await clear_callback()  # type: ignore
 
 
 async def destroy_all() -> None:
@@ -183,7 +183,7 @@ async def destroy_all() -> None:
 
     for destroy_callback in cleanup_repository.get_destroy_callbacks():
         if iscoroutinefunction(destroy_callback):
-            await destroy_callback()
+            await destroy_callback()  # type: ignore
         else:
             destroy_callback()
 
@@ -201,7 +201,7 @@ async def destroy_all_async() -> None:
 
     for destroy_callback in cleanup_repository.get_destroy_callbacks():
         if iscoroutinefunction(destroy_callback):
-            await destroy_callback()
+            await destroy_callback()  # type: ignore
 
 
 def _sync_lru_cache_wrapper(
@@ -218,8 +218,6 @@ def _sync_lru_cache_wrapper(
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     if wrap_async_exit_stack:
         raise InvalidCacheConfig(["wrap_async_exit_stack can only be used with async functions"])
-
-    sentinel = object()  # unique object used to signal cache misses
 
     cache: CacheRepository = LRUCacheRepository(maxsize=maxsize)
     cleanup_repository = CacheCleanupRegistry()
@@ -263,46 +261,17 @@ def _sync_lru_cache_wrapper(
         def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
-            __schedule_remove_expired()
             key = make_key(*args, **kwargs)
-            record = cache.get_no_adjust(key=key, default_value=sentinel)
-            if record is not sentinel:
-                hits += 1
-                result = record.get_cached()
-                return result
-            misses += 1
-            record = record = SyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),
-                get_exec_info=CacheTaskExecutionInfo(
-                    fail=not negative_cache,
-                    retries=retry_count,
-                    backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=False,
-                ),
-                expiration=get_cache_expiration(
-                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
-                ),
-                negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
-                ),
-            )
-            cache.add_no_adjust(key=key, value=record)
-            result = record.get_cached()
-            return result
 
-    else:
-
-        def wrapper(*args, **kwargs) -> T:
-            # Size limited caching that tracks accesses by recency
-            nonlocal hits, misses
-            __schedule_remove_expired()
-            key = make_key(*args, **kwargs)
             with lock:
-                result = cache.get(key)
-                if result is not None:
+                __schedule_remove_expired()
+
+                record = cache.get_no_adjust(key)
+                if record is not None:
                     hits += 1
-                    return result.get_cached()
+                    return record.get_cached()
                 misses += 1
+
             record = SyncCachedRecord(
                 get_function=partial(user_function, *args, **kwargs),
                 get_exec_info=CacheTaskExecutionInfo(
@@ -319,8 +288,47 @@ def _sync_lru_cache_wrapper(
                 ),
             )
             result = record.get_cached()
+
             with lock:
-                cache.add(key=key, value=record)
+                cache.add_no_adjust(key=key, value=record)
+
+            return result
+
+    else:
+
+        def wrapper(*args, **kwargs) -> T:
+            # Size limited caching that tracks accesses by recency
+            nonlocal hits, misses
+            key = make_key(*args, **kwargs)
+
+            with lock:
+                __schedule_remove_expired()
+
+                record = cache.get(key)
+                if record is not None:
+                    hits += 1
+                    return record.get_cached()
+                misses += 1
+
+            record = SyncCachedRecord(
+                get_function=partial(user_function, *args, **kwargs),
+                get_exec_info=CacheTaskExecutionInfo(
+                    fail=not negative_cache,
+                    retries=retry_count,
+                    backoff_in_seconds=backoff_in_seconds,
+                    wrap_async_exit_stack=False,
+                ),
+                expiration=get_cache_expiration(
+                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                ),
+                negative_expiration=get_cache_expiration(
+                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                ),
+            )
+            result = record.get_cached()
+
+            with lock:
+                cache.add(key, record)
 
             return result
 
@@ -375,15 +383,15 @@ def _async_lru_cache_wrapper(
     retry_count: int,
     backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
-    sentinel = object()  # unique object used to signal cache misses
-
     cache: CacheRepository = LRUCacheRepository(maxsize=maxsize)
     cleanup_repository = CacheCleanupRegistry()
 
     hits = misses = 0
-    lock = RLock()  # because cache updates aren't thread-safe
+    lock = Lock()  # because cache updates aren't concurrency-safe
+    destroy_event = Event()
     last_expiration_check = datetime.fromtimestamp(0, tz=timezone.utc)
     expiry_period = __parse_duration_to_timedelta(expired_items_auto_removal_period)
+    expiry_cleanup_task = create_task(__schedule_remove_expired())
 
     def __is_cache_enabled() -> bool:
         if maxsize == 0:
@@ -392,97 +400,115 @@ def _async_lru_cache_wrapper(
             return enabled()
         return enabled
 
-    def __remove_expired() -> None:
+    async def __expiry_record_lambda(_key: str, record: AsyncCachedRecord) -> bool:
+        return await record.is_expired()
+
+    async def __destroy_record_lambda(_key: str, record: AsyncCachedRecord) -> None:
+        await record.destroy()
+
+    async def __remove_expired() -> None:
         nonlocal last_expiration_check
         last_expiration_check = datetime.now(timezone.utc)
-        removed_items = cache.filter(lambda _key, record: not record.is_expired())
-        for removed_item in removed_items:
-            removed_item.destroy()
 
-    def __schedule_remove_expired() -> None:
+        removed_items = await cache.filter_async(__expiry_record_lambda)
+        await gather(*(record.destroy() for record in removed_items))
+
+    async def __schedule_remove_expired() -> None:
+        nonlocal last_expiration_check
+
         if expiry_period is None:
             return
-        if datetime.now(timezone.utc) - last_expiration_check >= expiry_period:
-            __remove_expired()
+
+        while not destroy_event.is_set():
+            await asleep(expiry_period.total_seconds())
+            async with lock:
+                await __remove_expired()
+                last_expiration_check = datetime.now(timezone.utc)
 
     if not __is_cache_enabled():
 
-        def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args, **kwargs) -> T:
             # No caching -- just a statistics update
             nonlocal cache, misses
             misses += 1
-            result = user_function(*args, **kwargs)
+            result = await user_function(*args, **kwargs)  # type: ignore
             return result
 
     elif maxsize is None:
 
-        def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
             nonlocal hits, misses
-            __schedule_remove_expired()
             key = make_key(*args, **kwargs)
-            record = cache.get_no_adjust(key=key, default_value=sentinel)
-            if record is not sentinel:
-                hits += 1
-                result = record.get_cached()
-                return result
-            misses += 1
-            record = record = SyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),
+
+            async with lock:
+                record = cache.get_no_adjust(key)
+                if record is not None:
+                    hits += 1
+                    return await record.get_cached()
+                misses += 1
+
+            record = AsyncCachedRecord(
+                get_function=partial(user_function, *args, **kwargs),  # type: ignore
                 get_exec_info=CacheTaskExecutionInfo(
                     fail=not negative_cache,
                     retries=retry_count,
                     backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=False,
+                    wrap_async_exit_stack=wrap_async_exit_stack or False,
                 ),
                 expiration=get_cache_expiration(
-                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                    expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
                 ),
                 negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                    negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
                 ),
             )
-            cache.add_no_adjust(key=key, value=record)
-            result = record.get_cached()
+            result = await record.get_cached()
+
+            async with lock:
+                cache.add_no_adjust(key=key, value=record)
+
             return result
 
     else:
 
-        def wrapper(*args, **kwargs) -> T:
+        async def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency
             nonlocal hits, misses
-            __schedule_remove_expired()
             key = make_key(*args, **kwargs)
-            with lock:
+
+            async with lock:
                 result = cache.get(key)
                 if result is not None:
                     hits += 1
-                    return result.get_cached()
+                    return await result.get_cached()
                 misses += 1
-            record = SyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),
+
+            record = AsyncCachedRecord(
+                get_function=partial(user_function, *args, **kwargs),  # type: ignore
                 get_exec_info=CacheTaskExecutionInfo(
                     fail=not negative_cache,
                     retries=retry_count,
                     backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=False,
+                    wrap_async_exit_stack=wrap_async_exit_stack or False,
                 ),
                 expiration=get_cache_expiration(
-                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                    expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
                 ),
                 negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                    negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
                 ),
             )
-            result = record.get_cached()
-            with lock:
+            result = await record.get_cached()
+
+            async with lock:
                 cache.add(key=key, value=record)
 
             return result
 
-    def cache_info() -> CacheInfo:
+    async def cache_info() -> CacheInfo:
         """Report cache statistics"""
-        with lock:
+        async with lock:
             return CacheInfo(
                 hits=hits,
                 misses=misses,
@@ -491,22 +517,25 @@ def _async_lru_cache_wrapper(
                 last_expiration_check=last_expiration_check,
             )
 
-    def cache_clear() -> None:
+    async def cache_clear() -> None:
         """Clear the cache and cache statistics"""
         nonlocal cache, hits, misses
-        with lock:
-            cache.every(lambda _key, value: value.destroy())
+        async with lock:
+            await cache.every_async(__destroy_record_lambda)
             cache.clear()
             hits = misses = 0
 
-    def remove_expired() -> None:
+    async def remove_expired() -> None:
         """Remove expired items from the cache"""
-        with lock:
-            __remove_expired()
+        async with lock:
+            await __remove_expired()
 
-    def destroy() -> None:
-        """Destroys the cache (for sync cache not that relevant)"""
-        cache_clear()
+    async def destroy() -> None:
+        """Destroys the cache"""
+        nonlocal destroy_event, expiry_cleanup_task
+        destroy_event.set()
+        await expiry_cleanup_task
+        await cache_clear()
 
     cleanup_repository.register_destroy_callback(destroy)
     cleanup_repository.register_clear_callback(cache_clear)
