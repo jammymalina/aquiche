@@ -59,28 +59,32 @@ def __parse_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -
 
 
 class CacheCleanupRegistry(metaclass=Singleton):
-    __destroy_callbacks: List[Callable[[], Union[None, Awaitable[None]]]]
-    __clear_callbacks: List[Callable[[], Union[None, Awaitable[None]]]]
+    __destroy_callbacks: List[Union[Callable[..., None], Callable[..., Awaitable[None]]]]
+    __clear_callbacks: List[Union[Callable[..., None], Callable[..., Awaitable[None]]]]
 
     def __init__(self) -> None:
         self.__destroy_callbacks = []
         self.__clear_callbacks = []
 
-    def register_destroy_callback(self, destroy_callback: Callable[[], Union[None, Awaitable[None]]]) -> None:
+    def register_destroy_callback(
+        self, destroy_callback: Union[Callable[..., None], Callable[..., Awaitable[None]]]
+    ) -> None:
         self.__destroy_callbacks.append(destroy_callback)
 
-    def get_destroy_callbacks(self) -> Iterable[Callable[[], Union[None, Awaitable[None]]]]:
+    def get_destroy_callbacks(self) -> Iterable[Union[Callable[..., None], Callable[..., Awaitable[None]]]]:
         return iter(self.__destroy_callbacks)
 
-    def register_clear_callback(self, clear_callback: Callable[[], Union[None, Awaitable[None]]]) -> None:
+    def register_clear_callback(
+        self, clear_callback: Union[Callable[..., None], Callable[..., Awaitable[None]]]
+    ) -> None:
         self.__clear_callbacks.append(clear_callback)
 
-    def get_clear_callbacks(self) -> Iterable[Callable[[], Union[None, Awaitable[None]]]]:
+    def get_clear_callbacks(self) -> Iterable[Union[Callable[..., None], Callable[..., Awaitable[None]]]]:
         return iter(self.__clear_callbacks)
 
 
 def alru_cache(
-    __func: Optional[Union[Callable[P, T], Callable[P, Awaitable[T]]]] = None,
+    __func: Union[Callable[P, T], None] = None,
     enabled: bool = True,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
@@ -90,7 +94,7 @@ def alru_cache(
     negative_expiration: Optional[CacheExpirationValue] = "10 seconds",
     retry_count: int = 0,
     backoff_in_seconds: Union[int, float] = 0,
-) -> Union[AquicheFunctionWrapper[Callable[P, T]], AquicheFunctionWrapper[Callable[P, Awaitable[T]]]]:
+) -> AquicheFunctionWrapper[Callable[P, T]]:
     validate_cache_params(
         enabled=enabled,
         maxsize=maxsize,
@@ -119,31 +123,31 @@ def alru_cache(
     # Negative retry count is treated as 0
     retry_count = max(retry_count, 0)
 
-    if callable(__func):
+    if __func is not None and callable(__func):
         # The user_function was passed in directly via the hidden __func argument
         user_function = __func
         if iscoroutinefunction(user_function):
             wrapper = _async_lru_cache_wrapper(
-                user_function,
+                user_function=user_function,
                 **asdict(cache_params),
             )
         else:
             wrapper = _sync_lru_cache_wrapper(
-                user_function,
+                user_function=user_function,
                 **asdict(cache_params),
             )
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
         return update_wrapper(wrapper, user_function)  # type: ignore
 
-    def decorating_function(user_function: Callable[P, T]):
+    def decorating_function(user_function: Union[Callable[P, T], Callable[P, Awaitable[T]]]):
         if iscoroutinefunction(user_function):
             wrapper = _async_lru_cache_wrapper(
-                user_function,
+                user_function=user_function,
                 **asdict(cache_params),
             )
         else:
             wrapper = _sync_lru_cache_wrapper(
-                user_function,
+                user_function=user_function,
                 **asdict(cache_params),
             )
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
