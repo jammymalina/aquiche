@@ -20,7 +20,6 @@ from aquiche._expiration import (
     DurationExpirationValue,
     get_cache_expiration,
     NonExpiringCacheExpiration,
-    RefreshingCacheExpiration,
 )
 from aquiche._hash import make_key
 from aquiche._repository import CacheRepository, LRUCacheRepository
@@ -29,8 +28,6 @@ from aquiche.utils._time_parse import parse_duration
 T = TypeVar("T")
 P = ParamSpec("P")
 C = TypeVar("C", bound=Callable)
-
-DEFAULT_NEGATIVE_CACHE_DURATION_SECONDS = 10
 
 
 @dataclass
@@ -62,13 +59,13 @@ def __parse_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -
 
 def alru_cache(
     __func: Optional[Callable[P, T]] = None,
-    enabled: Union[bool, Callable[[], bool]] = True,
+    enabled: bool = True,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
-    expired_items_auto_removal_period: Optional[DurationExpirationValue] = "10minutes",
+    expired_items_auto_removal_period: Optional[DurationExpirationValue] = "10 minutes",
     wrap_async_exit_stack: Union[bool, List[str], None] = None,
     negative_cache: bool = False,
-    negative_expiration: Optional[CacheExpirationValue] = "30s",
+    negative_expiration: Optional[CacheExpirationValue] = "10 seconds",
     retry_count: int = 0,
     backoff_in_seconds: Union[int, float] = 0,
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
@@ -135,7 +132,7 @@ def alru_cache(
 
 def _sync_lru_cache_wrapper(
     user_function: Callable[P, T],
-    enabled: Union[bool, Callable[[], bool]],
+    enabled: bool,
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
@@ -179,9 +176,8 @@ def _sync_lru_cache_wrapper(
     if not __is_cache_enabled():
 
         def wrapper(*args, **kwargs) -> T:
-            # No caching -- just a statistics update and potential cleanup
+            # No caching -- just a statistics update
             nonlocal cache, misses
-            cache.clear()
             misses += 1
             result = user_function(*args, **kwargs)
             return result
@@ -211,11 +207,7 @@ def _sync_lru_cache_wrapper(
                     expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
                 ),
                 negative_expiration=get_cache_expiration(
-                    negative_expiration,
-                    prefer_async=False,
-                    default_expiration=RefreshingCacheExpiration(
-                        timedelta(seconds=DEFAULT_NEGATIVE_CACHE_DURATION_SECONDS)
-                    ),
+                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
                 ),
             )
             cache.add_no_adjust(key=key, value=record)
@@ -247,11 +239,7 @@ def _sync_lru_cache_wrapper(
                     expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
                 ),
                 negative_expiration=get_cache_expiration(
-                    negative_expiration,
-                    prefer_async=False,
-                    default_expiration=RefreshingCacheExpiration(
-                        timedelta(seconds=DEFAULT_NEGATIVE_CACHE_DURATION_SECONDS)
-                    ),
+                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
                 ),
             )
             result = record.get_cached()

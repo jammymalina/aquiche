@@ -118,7 +118,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         self.__negative_expiration = negative_expiration
 
     async def get_cached(self) -> Any:
-        event = Event()
+        event = None
         await self.__lock.acquire()
 
         if self.__cached_value.last_fetched is not None:

@@ -7,7 +7,7 @@ from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
 
 @dataclass
 class CacheParameters:
-    enabled: Union[bool, Callable] = False
+    enabled: bool = False
     maxsize: Optional[int] = None
     expiration: Optional[CacheExpirationValue] = None
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
@@ -23,7 +23,7 @@ def __extract_type_names(types: Tuple[Any, ...]) -> str:
 
 
 def validate_cache_params(
-    enabled: Union[bool, Callable[[], bool]],
+    enabled: bool,
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
@@ -34,15 +34,17 @@ def validate_cache_params(
     backoff_in_seconds: Union[int, float],
 ) -> None:
     errors = []
-    if not isinstance(enabled, (bool)) or callable(enabled):
+    if not isinstance(enabled, bool):
         errors += ["enabled should be either bool or a callable function"]
-    if maxsize is not None and not isinstance(maxsize, int):
+    if not (maxsize is None or isinstance(maxsize, int)):
         errors += ["maxsize should be int or None"]
     if not (expiration is None or isinstance(expiration, get_args(CacheExpirationValue))):
-        errors += [f"expiration should be one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"]
-    if not isinstance(negative_expiration, get_args(CacheExpirationValue)):
         errors += [
-            f"negative expiration should be one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"
+            f"expiration should be either None or one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"
+        ]
+    if not (negative_expiration is None or isinstance(negative_expiration, get_args(CacheExpirationValue))):
+        errors += [
+            f"negative expiration should be either None or one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"
         ]
     if not (
         expired_items_auto_removal_period is None

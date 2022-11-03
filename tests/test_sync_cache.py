@@ -74,6 +74,44 @@ def test_simple_cache_default_params_decorator_variation(mocker: MockerFixture) 
 
 
 @pytest.mark.freeze_time
+def test_cache_enabled(mocker: MockerFixture) -> None:
+    """It should cache the values since cache is enabled"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache(enabled=True)
+    def cache_function(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    cache_function("a")
+    cache_function("a")
+    cache_function("a")
+
+    assert counter.call_count == 1
+    assert cache_function.cache_info().current_size == 1
+
+
+@pytest.mark.freeze_time
+def test_cache_disabled(mocker: MockerFixture) -> None:
+    """It should not cache the values since the cache is disabled"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache(enabled=False)
+    def cache_function(value: str) -> int:
+        nonlocal counter
+        counter()
+        return len(value)
+
+    cache_function("a")
+    cache_function("a")
+    cache_function("a")
+
+    assert counter.call_count == 3
+    assert cache_function.cache_info().current_size == 0
+
+
+@pytest.mark.freeze_time
 def test_simple_cache_clear(mocker: MockerFixture) -> None:
     """It should clear the cache"""
     counter = mocker.MagicMock(return_value=None)
