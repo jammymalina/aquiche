@@ -45,7 +45,7 @@ $ pip install aquiche
 ## Features
 
 - Robust caching
-- Supports both multithreaded and async environment
+- Safe to use with both async and multithreaded applications
 - Works with both "sync" functions and async functions/coroutines
 - No cache stampede/cascading failure - no multiple redundant calls when your cache is being hit at the same time
 - Wide range of options on setting the expiration
@@ -54,13 +54,37 @@ $ pip install aquiche
 - Contains typings
 - High test coverage
 
+## Description
+
+The decorator is very similar to [`functools.lru_cache`](https://docs.python.org/3/library/functools.html#functools.lru_cache).
+
+Decorator to wrap a function with a memoizing callable that saves up to the maxsize most recent calls. It can save time when an expensive or IO bound function is periodically called with the same arguments. The decorator works both with sync and async functions. It is safe to use in multithreaded and async applications.
+
+Since a dictionary is used to cache results, the positional and keyword arguments to the function must be hashable.
+
+Distinct argument patterns may be considered to be distinct calls with separate cache entries. For example, f(a=1, b=2) and f(b=2, a=1) differ in their keyword argument order and may have two separate cache entries.
+
+The wrapped function is instrumented with a `cache_parameters()` function that returns a dataclass showing the values for all the set params. This is for information purposes only. Mutating the values has no effect.
+
+To help measure the effectiveness of the cache and tune the maxsize parameter, the wrapped function is instrumented with a `cache_info()` function that returns a dataclass showing hits, misses, maxsize, current_size and last_expiration_check. This function has to be awaited when decorator is wrapping an async function.
+
+The decorator also provides a `cache_clear()` function for clearing or invalidating the cache. The function has to be awaited when the decorator is wrapping an async function.
+
+Expired items can be removed from the cache with the use of `remove_expired()` function. The function has to be awaited when the decorator is wrapping an async function.
+
+The original underlying function is accessible through the **wrapped** attribute. This is useful for introspection, for bypassing the cache, or for rewrapping the function with a different cache.
+
+The cache keeps references to the arguments and return values until they age out of the cache or until the cache is cleared. The cache can be periodically checked for the expired items.
+
+If a method is cached, the self instance argument is included in the cache. If you are caching a method it is strongly recommended to add `__eq__` and `__hash__` methods to the class.
+
 ## Guide
 
-The decorator is very similar to [`functools.lru_cache`](https://docs.python.org/3/library/functools.html#functools.lru_cache). It can simply be used without any options, both `@alru_cache` and `@alru_cache()` are supported.
+The decorator can simply be used without any params, both `@alru_cache` and `@alru_cache()` are supported. If you want to modify the caching behavior below you can find the list of params which can be set.
 
 ### Enable/Disable
 
-Cache can be enabled or disabled. **It is not checked actively during the runtime!** You cannot update the value once the function is wrapped. If you want to check actively if the cache is enabled use expiration param.
+Cache can be enabled or disabled. **It is not checked actively during the runtime!** You cannot update the value once the function is wrapped. If you want to check actively if the cache is enabled use the expiration param.
 
 ```python
 @alru_cache(enabled=True|False)
@@ -347,12 +371,12 @@ from typing import Any
 async def get_client() -> httpx.AsyncClient:
     return httpx.AsyncClient(base_url="https://api.data.io")
 
-async def main() -> None:
-    client = await get_client()
-    # Perform the needed actions
-    await client.post("/raspberry_pi")
-    # Once done clear the cache
-    await get_client.clear_cache()
+
+client = await get_client()
+# Perform the needed actions
+await client.post("/raspberry_pi")
+# Once done clear the cache
+await get_client.clear_cache()
 
 # In case of returning multiple clients a list of data pointers can be used to wrap them
 # If the data pointer does not point to any value from the result then the error is thrown
@@ -367,4 +391,72 @@ def get_clients() -> Any:
             "database": DatabaseClient()
         }
     }
+```
+
+### Negative Caching
+
+It is possible to enable the negative caching. If the negative caching is enabled the errors are not raised but rather cached as if they were the actual results of the function call. The negative cache has separate expiration which is by default set to 10 seconds. It is recommended to always set the negative cache expiration, preferably to a short duration. The negative caching is disabled by default.
+
+```python
+from aquiche import alru_cache
+
+# the function can now return exceptions as well
+@alru_cache(negative_cache=True, negative_expiration="30seconds")
+async def cache_function(value: str) -> int | Exception:
+    if value == "invalid":
+        raise Exception("Invalid data")
+    return len(value)
+
+await cache_function("invalid")
+result = await cache_function("invalid")
+
+assert isinstance(error, Exception)
+assert str(error) == "Invalid data"
+```
+
+### Retry with Exponential Backoff
+
+The function calls can be retried if they fail. To retry the function call `retry_count` can be set to desired number of retries. The function call is retried with exponential backoff. To set the exponential backoff use the `backoff_in_seconds` param. Both `retry_count` and `backoff_in_seconds` are set to 0 by default.
+
+```python
+from aquiche import alru_cache
+import random
+
+@alru_cache(negative_cache=True, retry_count=3, backoff_in_seconds=2)
+async def cache_function(value: str) -> int | Exception:
+    if random.randint(1, 10) > 2:
+        raise Exception("Doom has fallen upon us")
+    return len(value)
+```
+
+### Clearing the Cache & Removing Expired Items
+
+The cache can be cleared either individually or all cached functions can be cleared with a clear all function. The contexts are automatically cleaned up on the cache clear if they were created with the use of `wrap_async_exit_stack` param. If you are only using the decorator with the sync functions there is a sync version of clear all function which only clears the "sync" function caches.
+
+To remove the expired items `remove_expired()` function can be called.
+
+```python
+from aquiche import alru_cache, clear_all, clear_all_sync
+
+@alru_cache(wrap_async_exit_stack=True)
+async def cache_function_async(value: str) -> Client:
+    return Client()
+
+@alru_cache(retry_count=3, backoff_in_seconds=2)
+def cache_function_sync(value: str) -> int:
+    return len(value)
+
+# Clears individual function caches
+await cache_function_async.clear_cache()
+cache_function_sync.clear_cache()
+
+# Clears both cache_function_sync and cache_function_async's cache
+await clear_all()
+
+# Clears only cache_function_sync's cache
+clear_all_sync()
+
+# Removes expired items
+await cache_function_async.remove_expired()
+cache_function_sync.remove_expired()
 ```
