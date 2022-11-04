@@ -355,7 +355,7 @@ async def main() -> None:
     await get_client.clear_cache()
 
 # In case of returning multiple clients a list of data pointers can be used to wrap them
-# If the data pointer is invalid or does not point to any value from the result then the error is thrown
+# If the data pointer does not point to any value from the result then the error is thrown
 # To prevent the error from happening you can append suffix :ignore_missing to the data pointer
 @alru_cache(wrap_async_exit_stack=["$.clients.database:ignore_missing", "$.clients.http"])
 def get_clients() -> Any:
