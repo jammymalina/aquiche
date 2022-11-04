@@ -86,7 +86,7 @@ async def cache_function_unlimited(value: str) -> int:
 
 ### Expiration
 
-It is possible to set when the function call expires. Expired functions call will automatically be called again next time the function is being called. To save the memory it is possible to set `expired_items_auto_removal_period` to automatically remove items after certain period of time. If set to `None` expired items are not removed but stay in cache. It is set to `None` by default. The decorated function still needs to be called for the removal to happen - the expiration removal task is not automatically scheduled. It is recommended to rather use `maxsize` to limit the memory consumption and keep the param set to `None`.
+It is possible to set when the function call expires. Expired functions call will automatically be called again next time the function is being called. To save the memory it is possible to set `expired_items_auto_removal_period` to automatically remove items after certain period of time. If set to `None` expired items are not removed but stay in the cache. It is set to `None` by default. The decorated function still needs to be called for the removal to happen - the expiration removal task is not automatically scheduled. It is recommended to rather use `maxsize` to limit the memory consumption and keep the param set to `None`.
 
 Possible expiration options:
 
