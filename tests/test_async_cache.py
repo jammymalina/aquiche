@@ -7,10 +7,10 @@ from pytest_mock import MockerFixture
 from aquiche import (
     alru_cache,
     CacheInfo,
-    CachedValue,
     clear_all,
     clear_all_sync,
 )
+from aquiche._core import CachedValue
 
 
 @pytest.mark.freeze_time
