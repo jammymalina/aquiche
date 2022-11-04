@@ -246,28 +246,6 @@ def test_auto_expired_items_removal(mocker: MockerFixture, freezer: Any) -> None
 
 
 @pytest.mark.freeze_time
-def test_default_auto_expired_items_removal(mocker: MockerFixture, freezer: Any) -> None:
-    """It should automatically clear the expired items from the cache - default behavior"""
-    counter = mocker.MagicMock(return_value=None)
-
-    @alru_cache(expiration="12h")
-    def cache_function(value: str) -> int:
-        nonlocal counter
-        counter()
-        return len(value)
-
-    freezer.move_to("2022-01-01")
-    cache_function("a")
-    cache_function("a")
-    assert counter.call_count == 1
-    assert cache_function.cache_info().current_size == 1
-
-    freezer.move_to("2022-01-02")
-    cache_function("b")
-    assert cache_function.cache_info().current_size == 1
-
-
-@pytest.mark.freeze_time
 def test_expired_items_removal_manual(mocker: MockerFixture, freezer: Any) -> None:
     """It should clear clear the expired items from the cache when removal function is explicitly called"""
     counter = mocker.MagicMock(return_value=None)

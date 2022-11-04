@@ -4,7 +4,7 @@ from unittest.mock import ANY
 import pytest
 from pytest_mock import MockerFixture
 
-from aquiche._alru_cache import (
+from aquiche import (
     alru_cache,
     CacheInfo,
     clear_all,
@@ -228,28 +228,6 @@ async def test_async_auto_expired_items_removal(mocker: MockerFixture, freezer: 
     counter = mocker.AsyncMock(return_value=None)
 
     @alru_cache(expiration="12h", expired_items_auto_removal_period="12h")
-    async def cache_function(value: str) -> int:
-        nonlocal counter
-        await counter()
-        return len(value)
-
-    freezer.move_to("2022-01-01")
-    await cache_function("a")
-    await cache_function("a")
-    assert counter.call_count == 1
-    assert (await cache_function.cache_info()).current_size == 1
-
-    freezer.move_to("2022-01-02")
-    await cache_function("b")
-    assert (await cache_function.cache_info()).current_size == 1
-
-
-@pytest.mark.freeze_time
-async def test_async_default_auto_expired_items_removal(mocker: MockerFixture, freezer: Any) -> None:
-    """It should automatically clear the expired items from the cache - default behavior"""
-    counter = mocker.AsyncMock(return_value=None)
-
-    @alru_cache(expiration="12h")
     async def cache_function(value: str) -> int:
         nonlocal counter
         await counter()

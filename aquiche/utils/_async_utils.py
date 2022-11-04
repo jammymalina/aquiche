@@ -44,11 +44,24 @@ class AsyncWrapperMixin:
                 wrapped_value = await exit_stack.enter_async_context(value)
                 return exit_stack, wrapped_value
 
+            sentinel = object()
+
             for attr_path in wrap_config:
-                wrapped_attr_val = await exit_stack.enter_async_context(
-                    extract_from_obj(obj=value, attribute_path=attr_path)
+                attr_path = attr_path.strip()
+                check_missing_values = True
+                if attr_path.endswith(":ignore_missing"):
+                    check_missing_values = False
+                    attr_path.rstrip(":ignore_missing")
+                attribute_value = extract_from_obj(
+                    obj=value,
+                    attribute_path=attr_path,
+                    check_attribute_exists=check_missing_values,
+                    default_value=sentinel,
                 )
-                set_value_obj(obj=value, attribute_path=attr_path, value=wrapped_attr_val)
+
+                if attribute_value is not sentinel:
+                    wrapped_attr_val = await exit_stack.enter_async_context(attribute_value)
+                    set_value_obj(obj=value, attribute_path=attr_path, value=wrapped_attr_val)
 
             return exit_stack, value
         except:

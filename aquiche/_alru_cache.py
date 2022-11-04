@@ -90,7 +90,7 @@ def alru_cache(
     enabled: bool = True,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
-    expired_items_auto_removal_period: Optional[DurationExpirationValue] = "10 minutes",
+    expired_items_auto_removal_period: Optional[DurationExpirationValue] = None,
     wrap_async_exit_stack: Union[bool, List[str], None] = None,
     negative_cache: bool = False,
     negative_expiration: Optional[CacheExpirationValue] = "10 seconds",
