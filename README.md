@@ -295,9 +295,11 @@ from aquiche import alru_cache, CachedItem
 """
 @dataclass
 class CachedItem:
-    value: Any -> the returned value or the raised exception (only with negative cache enabled)
+    value: Any -> the returned value or the raised exception*
     last_fetched: datetime -> when was the value last fetched
-    is_error: bool -> set to true if the value contains a raised exception (negative cache enabled)
+    is_error: bool -> set to true if the value contains a raised exception*
+
+*Only possible when the negative cache is enabled
 """
 
 async def is_item_expired_async(item: CachedItem) -> bool:
