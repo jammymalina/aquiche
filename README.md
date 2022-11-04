@@ -93,7 +93,7 @@ Possible expiration options:
 - `None`, the function call never expires
 - `True|False`, if set to `True` the value is expired and function will be called again
 - `int|float`, based on the value it will either be treated as the `timedelta` or unix timestamp
-- `datetime`, TTL (Time To Live)/the expiration date, if it contains no timezone the UTC timezone automatically added
+- `datetime`, TTL (Time To Live)/the expiration date, if it contains no timezone the UTC timezone is automatically added
 - `time`, the function call will expire today at this time
 - `timedelta`, TTR (Time To Refresh/refresh interval), the function call will refresh the value each `timedelta` period
 - `datetime|time|timedelta` string, the string that can be parsed to `datetime|time|timedelta`, supported formats: ISO 8601, human readable formats, uses the same (or nearly the same) resolution as [pydantic](https://pydantic-docs.helpmanual.io)
