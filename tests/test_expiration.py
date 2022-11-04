@@ -8,6 +8,7 @@ from pytest_mock import MockerFixture
 from aquiche import errors
 from aquiche._core import CachedValue
 from aquiche._expiration import (
+    BoolCacheExpiration,
     CacheExpiration,
     NonExpiringCacheExpiration,
     DateCacheExpiration,
@@ -52,6 +53,21 @@ def test_non_expiring_cache_expiration(value: CachedValue, result: bool) -> None
     """It should never expire the cache"""
     cache_expiration = NonExpiringCacheExpiration()
     assert cache_expiration.is_value_expired(value) == result
+
+
+@pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
+def test_bool_expiration() -> None:
+    """It should expire the cache when the value is set to True and vice-versa"""
+    value = CachedValue()
+
+    cache_expiration = BoolCacheExpiration(True)
+    assert cache_expiration.is_value_expired(value)
+
+    cache_expiration = BoolCacheExpiration(False)
+    assert not cache_expiration.is_value_expired(value)
+
+    cache_expiration = get_cache_expiration(True)
+    assert isinstance(cache_expiration, BoolCacheExpiration)
 
 
 @pytest.mark.parametrize(
@@ -133,7 +149,7 @@ def test_cache_expiration(value: CachedValue, result: bool) -> None:
 )
 @pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
 def test_cache_refresh_expiration(value: CachedValue, result: bool) -> None:
-    """It should expire the cache based on time interval"""
+    """It should expire the cache based on the time interval"""
     cache_expiration = RefreshingCacheExpiration(refresh_interval=timedelta(days=1))
     assert cache_expiration.is_value_expired(value) == result
 

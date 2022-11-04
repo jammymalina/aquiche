@@ -9,7 +9,7 @@ from aquiche.utils._async_utils import awaitify
 from aquiche.utils._extraction_utils import extract_from_obj
 from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
 
-CacheExpirationValue = Union[int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable]
+CacheExpirationValue = Union[bool, int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable]
 DurationExpirationValue = Union[str, bytes, int, float, timedelta]
 
 
@@ -44,6 +44,24 @@ class NonExpiringCacheExpiration(CacheExpiration):
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, NonExpiringCacheExpiration)
+
+
+class BoolCacheExpiration(CacheExpiration):
+    __is_expired: bool
+
+    def __init__(self, is_expired: bool) -> None:
+        super().__init__()
+        self.__is_expired = is_expired
+
+    @property
+    def is_expired(self) -> bool:
+        return self.__is_expired
+
+    def is_value_expired(self, _value: CachedValue) -> bool:
+        return self.is_expired
+
+    def __eq__(self, other: Any) -> bool:
+        return isinstance(other, BoolCacheExpiration) and other.is_expired == self.is_expired
 
 
 class DateCacheExpiration(CacheExpiration):
@@ -182,6 +200,8 @@ def get_cache_expiration(
 ) -> Union[CacheExpiration, AsyncCacheExpiration]:
     if value is None:
         return default_expiration or NonExpiringCacheExpiration()
+    if isinstance(value, bool):
+        return BoolCacheExpiration(value)
     if isinstance(value, (float, int)):
         return __get_cache_expiration_from_num(value)
     if isinstance(value, (str, bytes)):

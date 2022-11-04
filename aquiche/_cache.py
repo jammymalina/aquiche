@@ -61,9 +61,9 @@ class SyncCachedRecord:
     ) -> Tuple[CacheExpiration, CacheExpiration]:
         error_messages = []
         if isinstance(expiration, AsyncCacheExpiration):
-            error_messages.append('invalid expiration - use values that evaluate to "sync" objects')
+            error_messages.append("invalid expiration, use values that evaluate to 'sync' objects")
         if isinstance(negative_expiration, AsyncCacheExpiration):
-            error_messages.append('invalid negative expiration - use values that evaluate to "sync" objects')
+            error_messages.append("invalid negative expiration, use values that evaluate to 'sync' objects")
 
         if len(error_messages) > 0:
             raise errors.InvalidCacheConfig(error_messages)
