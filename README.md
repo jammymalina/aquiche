@@ -48,7 +48,7 @@ $ pip install aquiche
 - Safe to use with both async and multithreaded applications
 - Works with both "sync" functions and async functions/coroutines
 - No cache stampede/cascading failure - no multiple redundant calls when your cache is being hit at the same time
-- Wide range of options on setting the expiration
+- Wide range of options for setting the expiration
 - Negative cache support
 - Focus on high performance
 - Contains typings
@@ -64,27 +64,27 @@ Since a dictionary is used to cache results, the positional and keyword argument
 
 Distinct argument patterns may be considered to be distinct calls with separate cache entries. For example, f(a=1, b=2) and f(b=2, a=1) differ in their keyword argument order and may have two separate cache entries.
 
-The wrapped function is instrumented with a `cache_parameters()` function that returns a dataclass showing the values for all the set params. This is for information purposes only. Mutating the values has no effect.
+The wrapped function is instrumented with a `cache_parameters()` function that returns a dataclass showing the values for all the set parameters. This is for information purposes only. Mutating the values has no effect.
 
-To help measure the effectiveness of the cache and tune the maxsize parameter, the wrapped function is instrumented with a `cache_info()` function that returns a dataclass showing hits, misses, maxsize, current_size and last_expiration_check. This function has to be awaited when decorator is wrapping an async function.
+To help measure the effectiveness of the cache and tune the maxsize parameter, the wrapped function is instrumented with a `cache_info()` function that returns a dataclass showing hits, misses, maxsize, current_size, and last_expiration_check. This function has to be awaited when the decorator is wrapping an async function.
 
 The decorator also provides a `cache_clear()` function for clearing or invalidating the cache. The function has to be awaited when the decorator is wrapping an async function.
 
 Expired items can be removed from the cache with the use of `remove_expired()` function. The function has to be awaited when the decorator is wrapping an async function.
 
-The original underlying function is accessible through the **wrapped** attribute. This is useful for introspection, for bypassing the cache, or for rewrapping the function with a different cache.
+The original underlying function is accessible through the **wrapped** attribute. This is useful for introspection, bypassing the cache, or for rewrapping the function with a different cache.
 
-The cache keeps references to the arguments and return values until they age out of the cache or until the cache is cleared. The cache can be periodically checked for the expired items.
+The cache keeps references to the arguments and returns values until they age out of the cache or until the cache is cleared. The cache can be periodically checked for expired items.
 
 If a method is cached, the self instance argument is included in the cache. If you are caching a method it is strongly recommended to add `__eq__` and `__hash__` methods to the class.
 
 ## Guide
 
-The decorator can simply be used without any params, both `@alru_cache` and `@alru_cache()` are supported. If you want to modify the caching behavior below you can find the list of params which can be set.
+The decorator can simply be used without any parameters, both `@alru_cache` and `@alru_cache()` are supported. If you want to modify the caching behavior below you can find the list of parameters that can be set.
 
 ### Enable/Disable
 
-Cache can be enabled or disabled. **It is not checked actively during the runtime!** You cannot update the value once the function is wrapped. If you want to check actively if the cache is enabled use the expiration param.
+The cache can be enabled or disabled. **It is not checked actively during the runtime!** You cannot update the value once the function is wrapped. If you want to check actively if the cache is enabled use the expiration param.
 
 ```python
 @alru_cache(enabled=True|False)
@@ -110,24 +110,24 @@ async def cache_function_unlimited(value: str) -> int:
 
 ### Expiration
 
-It is possible to set when the function call expires. Expired functions call will automatically be called again next time the function is being called. To save the memory it is possible to set `expired_items_auto_removal_period` to automatically remove items after certain period of time. If set to `None` expired items are not removed but stay in the cache. It is set to `None` by default. The decorated function still needs to be called for the removal to happen - the expiration removal task is not automatically scheduled. It is recommended to rather use `maxsize` to limit the memory consumption and keep the param set to `None`.
+It is possible to set when the function call expires. Expired functions call will automatically be called again the next time the function is being called. To save memory it is possible to set `expired_items_auto_removal_period` to automatically remove items after a certain period of time. If set to `None` expired items are not removed but stay in the cache. It is set to `None` by default. The decorated function still needs to be called for the removal to happen - the expiration removal task is not automatically scheduled. It is recommended to rather use `maxsize` to limit the memory consumption and keep the param set to `None`.
 
 Possible expiration options:
 
 - `None`, the function call never expires
-- `True|False`, if set to `True` the value is expired and function will be called again
+- `True|False`, if set to `True` the value is expired and the function will be called again
 - `int|float`, based on the value it will either be treated as the `timedelta` or unix timestamp
 - `datetime`, TTL (Time To Live)/the expiration date, if it contains no timezone the UTC timezone is automatically added
 - `time`, the function call will expire today at this time
 - `timedelta`, TTR (Time To Refresh/refresh interval), the function call will refresh the value each `timedelta` period
-- `datetime|time|timedelta` string, the string that can be parsed to `datetime|time|timedelta`, supported formats: ISO 8601, human readable formats, uses the same (or nearly the same) resolution as [pydantic](https://pydantic-docs.helpmanual.io)
+- `datetime|time|timedelta` string, the string that can be parsed to `datetime|time|timedelta`, supported formats: ISO 8601, human-readable formats, uses the same (or nearly the same) resolution as [pydantic](https://pydantic-docs.helpmanual.io)
 - Data pointer string e.g. `$.response.data.expiry`, the pointer can point to any of the other expiration values
 - Function, the `CachedItem` object (for more information see the example below) will be passed as an argument to the function. The error will be thrown if you try to use this option while decorating a "sync" function. It is possible to return any of the other expiration options from the function
 - Async function/coroutine, the `CachedItem` object (for more information see the example below) will be passed as an argument to the function. It can only be used when decorating an async function/coroutine. It is possible to return any of the other expiration options from the function
 
 It is set to `None` by default.
 
-#### Datetime, Date and Time Expiration
+#### Datetime, Date, and Time Expiration
 
 ```python
 from aquiche import alru_cache
@@ -159,7 +159,7 @@ async def get_data(value: str) -> int:
     return len(value)
 
 """
-Other possible datetime/date/time values:
+Another possible datetime/date/time values:
 
 # values in seconds
 '1494012444.883309' -> datetime(2017, 5, 5, 19, 27, 24, 883_309, tzinfo=timezone.utc)
@@ -359,7 +359,7 @@ def cache_function_sync(value: str) -> int:
 
 ### "Wrapping" the Async Clients in AsyncExitStack
 
-The param `wrap_async_exit_stack` simplifies caching of the async clients. When the function is called the returned client(s) (or any other value for the matter) enters the async context. When the client expires or the cache is cleared, the context is automatically cleaned up and renewed if needed. It is recommended to manually clear the cache on the shutdown so the context is closed.
+The param `wrap_async_exit_stack` simplifies caching of the async clients. When the function is called the returned client(s) (or any other value for that matter) enters the async context. When the client expires or the cache is cleared, the context is automatically cleaned up and renewed if needed. It is recommended to manually clear the cache on the shutdown so the context is closed.
 
 ```python
 import httpx
@@ -395,7 +395,7 @@ def get_clients() -> Any:
 
 ### Negative Caching
 
-It is possible to enable the negative caching. If the negative caching is enabled the errors are not raised but rather cached as if they were the actual results of the function call. The negative cache has separate expiration which is by default set to 10 seconds. It is recommended to always set the negative cache expiration, preferably to a short duration. The negative caching is disabled by default.
+It is possible to enable the negative caching. If the negative caching is enabled the errors are not raised but rather cached as if they were the actual results of the function call. The negative cache has a separate expiration which is by default set to 10 seconds. It is recommended to always set the negative cache expiration, preferably to a short duration. The negative caching is disabled by default.
 
 ```python
 from aquiche import alru_cache
@@ -431,7 +431,7 @@ async def cache_function(value: str) -> int | Exception:
 
 ### Clearing the Cache & Removing Expired Items
 
-The cache can be cleared either individually or all cached functions can be cleared with a clear all function. The contexts are automatically cleaned up on the cache clear if they were created with the use of `wrap_async_exit_stack` param. If you are only using the decorator with the sync functions there is a sync version of clear all function which only clears the "sync" function caches.
+The cache can be cleared either individually or all cached functions can be cleared with a clear all function. The contexts are automatically cleaned up on the cache clear if they were created with the use of `wrap_async_exit_stack` param. If you are only using the decorator with the sync functions there is a sync version of the clear all function which only clears the "sync" function caches.
 
 To remove the expired items `remove_expired()` function can be called.
 
