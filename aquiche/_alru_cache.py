@@ -233,36 +233,34 @@ def _sync_lru_cache_wrapper(
             nonlocal hits, misses
             key = make_key(*args, **kwargs)
 
+            record = None
             with lock:
                 __schedule_remove_expired()
 
                 record = cache.get_no_adjust(key)
                 if record is not None:
                     hits += 1
-                    return record.get_cached()
-                misses += 1
+                else:
+                    misses += 1
 
-            record = SyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),
-                get_exec_info=CacheTaskExecutionInfo(
-                    fail=not negative_cache,
-                    retries=retry_count,
-                    backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=False,
-                ),
-                expiration=get_cache_expiration(
-                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
-                ),
-                negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
-                ),
-            )
-            result = record.get_cached()
+                    record = SyncCachedRecord(
+                        get_function=partial(user_function, *args, **kwargs),
+                        get_exec_info=CacheTaskExecutionInfo(
+                            fail=not negative_cache,
+                            retries=retry_count,
+                            backoff_in_seconds=backoff_in_seconds,
+                            wrap_async_exit_stack=False,
+                        ),
+                        expiration=get_cache_expiration(
+                            expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                        negative_expiration=get_cache_expiration(
+                            negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                    )
+                    cache.add_no_adjust(key=key, value=record)
 
-            with lock:
-                cache.add_no_adjust(key=key, value=record)
-
-            return result
+            return record.get_cached()
 
     else:
 
@@ -271,36 +269,34 @@ def _sync_lru_cache_wrapper(
             nonlocal hits, misses
             key = make_key(*args, **kwargs)
 
+            record = None
             with lock:
                 __schedule_remove_expired()
 
                 record = cache.get(key)
                 if record is not None:
                     hits += 1
-                    return record.get_cached()
-                misses += 1
+                else:
+                    misses += 1
 
-            record = SyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),
-                get_exec_info=CacheTaskExecutionInfo(
-                    fail=not negative_cache,
-                    retries=retry_count,
-                    backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=False,
-                ),
-                expiration=get_cache_expiration(
-                    expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
-                ),
-                negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
-                ),
-            )
-            result = record.get_cached()
+                    record = SyncCachedRecord(
+                        get_function=partial(user_function, *args, **kwargs),
+                        get_exec_info=CacheTaskExecutionInfo(
+                            fail=not negative_cache,
+                            retries=retry_count,
+                            backoff_in_seconds=backoff_in_seconds,
+                            wrap_async_exit_stack=False,
+                        ),
+                        expiration=get_cache_expiration(
+                            expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                        negative_expiration=get_cache_expiration(
+                            negative_expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                    )
+                    cache.add(key, record)
 
-            with lock:
-                cache.add(key, record)
-
-            return result
+            return record.get_cached()
 
     def cache_info() -> CacheInfo:
         """Report cache statistics"""
@@ -401,36 +397,34 @@ def _async_lru_cache_wrapper(
 
             key = make_key(*args, **kwargs)
 
+            record = None
             async with lock:
                 await __schedule_remove_expired()
 
                 record = cache.get_no_adjust(key)
                 if record is not None:
                     hits += 1
-                    return await record.get_cached()
-                misses += 1
+                else:
+                    misses += 1
 
-            record = AsyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),  # type: ignore
-                get_exec_info=CacheTaskExecutionInfo(
-                    fail=not negative_cache,
-                    retries=retry_count,
-                    backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=wrap_async_exit_stack or False,
-                ),
-                expiration=get_cache_expiration(
-                    expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
-                ),
-                negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
-                ),
-            )
-            result = await record.get_cached()
+                    record = AsyncCachedRecord(
+                        get_function=partial(user_function, *args, **kwargs),  # type: ignore
+                        get_exec_info=CacheTaskExecutionInfo(
+                            fail=not negative_cache,
+                            retries=retry_count,
+                            backoff_in_seconds=backoff_in_seconds,
+                            wrap_async_exit_stack=wrap_async_exit_stack or False,
+                        ),
+                        expiration=get_cache_expiration(
+                            expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                        negative_expiration=get_cache_expiration(
+                            negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                    )
+                    cache.add_no_adjust(key=key, value=record)
 
-            async with lock:
-                cache.add_no_adjust(key=key, value=record)
-
-            return result
+            return await record.get_cached()
 
     else:
 
@@ -439,36 +433,34 @@ def _async_lru_cache_wrapper(
             nonlocal hits, misses
             key = make_key(*args, **kwargs)
 
+            record = None
             async with lock:
                 await __schedule_remove_expired()
 
-                result = cache.get(key)
-                if result is not None:
+                record = cache.get(key)
+                if record is not None:
                     hits += 1
-                    return await result.get_cached()
-                misses += 1
+                else:
+                    misses += 1
 
-            record = AsyncCachedRecord(
-                get_function=partial(user_function, *args, **kwargs),  # type: ignore
-                get_exec_info=CacheTaskExecutionInfo(
-                    fail=not negative_cache,
-                    retries=retry_count,
-                    backoff_in_seconds=backoff_in_seconds,
-                    wrap_async_exit_stack=wrap_async_exit_stack or False,
-                ),
-                expiration=get_cache_expiration(
-                    expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
-                ),
-                negative_expiration=get_cache_expiration(
-                    negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
-                ),
-            )
-            result = await record.get_cached()
+                    record = AsyncCachedRecord(
+                        get_function=partial(user_function, *args, **kwargs),  # type: ignore
+                        get_exec_info=CacheTaskExecutionInfo(
+                            fail=not negative_cache,
+                            retries=retry_count,
+                            backoff_in_seconds=backoff_in_seconds,
+                            wrap_async_exit_stack=wrap_async_exit_stack or False,
+                        ),
+                        expiration=get_cache_expiration(
+                            expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                        negative_expiration=get_cache_expiration(
+                            negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
+                        ),
+                    )
+                    cache.add(key=key, value=record)
 
-            async with lock:
-                cache.add(key=key, value=record)
-
-            return result
+            return await record.get_cached()
 
     async def cache_info() -> CacheInfo:
         """Report cache statistics"""
