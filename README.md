@@ -116,7 +116,10 @@ async def get_data(value: str) -> int:
     return len(value)
 
 # Datetime expiration
-@alru_cache(expiration=datetime(2017, 5, 5, 19, 27, 24, 883_309), expired_items_auto_removal_period="1 hour")
+@alru_cache(
+    expiration=datetime(2017, 5, 5, 19, 27, 24),
+    expired_items_auto_removal_period="1 hour"
+)
 async def get_data(value: str) -> int:
     return len(value)
 
@@ -125,7 +128,8 @@ async def get_data(value: str) -> int:
 async def get_data(value: str) -> int:
     return len(value)
 
-# Time expiration, expires the same day, if the time does not contain timezone it defaults to UTC
+# Time expiration, expires the same day
+# If the time does not contain timezone it defaults to UTC
 @alru_cache(expiration="11:05:00Z", expired_items_auto_removal_period="10 minutes")
 async def get_data(value: str) -> int:
     return len(value)
@@ -291,9 +295,9 @@ from aquiche import alru_cache, CachedItem
 """
 @dataclass
 class CachedItem:
-    value: Any -> the returned value
+    value: Any -> the returned value or the raised exception (only with negative cache enabled)
     last_fetched: datetime -> when was the value last fetched
-    is_error: bool -> only relevant with negative cache enabled, if the error outcome of the function is stored this is set to True
+    is_error: bool -> set to true if the value contains a raised exception (negative cache enabled)
 """
 
 async def is_item_expired_async(item: CachedItem) -> bool:
@@ -306,7 +310,8 @@ def is_item_expired(item: CachedItem) -> str | datetime:
         return datetime(2017, 5, 5, 19, 27, 24, tzinfo=timezone.utc)
     return "1 day"
 
-# Async function/Coroutine can be used with both sync and async functions/coroutine expirations
+# Async function/Coroutine
+# It can be used with both sync and async function expirations
 @alru_cache(expiration=is_item_expired_async)
 async def cache_function_async_1(value: str) -> int:
     return len(value)
@@ -328,7 +333,7 @@ def cache_function_sync(value: str) -> int:
 
 ### "Wrapping" the Async Clients in AsyncExitStack
 
-The param `wrap_async_exit_stack` simplifies caching of the async clients. When the function is called the returned client(s) (or any other value for the matter) enters the async context. The client can be used until it expires or when the cache is cleared when context is automatically cleaned up and renewed if needed. It is recommended to manually clear the cache on the shutdown so the context is closed.
+The param `wrap_async_exit_stack` simplifies caching of the async clients. When the function is called the returned client(s) (or any other value for the matter) enters the async context. When the client expires or the cache is cleared, the context is automatically cleaned up and renewed if needed. It is recommended to manually clear the cache on the shutdown so the context is closed.
 
 ```python
 import httpx
