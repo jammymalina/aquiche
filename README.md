@@ -112,7 +112,7 @@ async def cache_function_unlimited(value: str) -> int:
 
 It is possible to set when the function call expires. Expired functions call will automatically be called again the next time the function is being called. To save memory it is possible to set `expired_items_auto_removal_period` to automatically remove items after a certain period of time. If set to `None` expired items are not removed but stay in the cache. It is set to `None` by default. The decorated function still needs to be called for the removal to happen - the expiration removal task is not automatically scheduled. It is recommended to rather use `maxsize` to limit the memory consumption and keep the param set to `None`.
 
-Possible expiration options:
+Possible expiration types/values:
 
 - `None`, the function call never expires
 - `True|False`, if set to `True` the value is expired and the function will be called again
@@ -122,10 +122,12 @@ Possible expiration options:
 - `timedelta`, TTR (Time To Refresh/refresh interval), the function call will refresh the value each `timedelta` period
 - `datetime|time|timedelta` string, the string that can be parsed to `datetime|time|timedelta`, supported formats: ISO 8601, human-readable formats, uses the same (or nearly the same) resolution as [pydantic](https://pydantic-docs.helpmanual.io)
 - Data pointer string e.g. `$.response.data.expiry`, the pointer can point to any of the other expiration values
-- Function, the `CachedItem` object (for more information see the example below) will be passed as an argument to the function. The error will be thrown if you try to use this option while decorating a "sync" function. It is possible to return any of the other expiration options from the function
-- Async function/coroutine, the `CachedItem` object (for more information see the example below) will be passed as an argument to the function. It can only be used when decorating an async function/coroutine. It is possible to return any of the other expiration options from the function
+- Function, the `CachedItem` object (for more information see the example below) will be passed as an argument to the function. It is possible to return any of the other expiration types from the function
+- Async function/coroutine, the `CachedItem` object (for more information see the example below) will be passed as an argument to the function. It can only be used when decorating an async function/coroutine. It is possible to return any of the other expiration types from the function
 
-It is set to `None` by default.
+The expiration types like True, False or datetime are best used in combination with a data pointer or a function/coroutine. It is strongly advised not to set these directly in the decorator.
+
+The expiration is set to `None` by default.
 
 #### Datetime, Date, and Time Expiration
 
