@@ -10,7 +10,7 @@ from aquiche import (
     clear_all,
     clear_all_sync,
 )
-from aquiche._core import CachedValue
+from aquiche._core import CachedItem
 from aquiche.errors import InvalidCacheConfig
 
 
@@ -251,7 +251,7 @@ def test_cache_function_expiry(mocker: MockerFixture) -> None:
     """It should expire the value based on the expiration function result"""
     counter = mocker.MagicMock(return_value=None)
 
-    def is_item_expired(value: CachedValue) -> bool:
+    def is_item_expired(value: CachedItem) -> bool:
         return value.value > 1
 
     @alru_cache(expiration=is_item_expired)
@@ -295,7 +295,7 @@ def test_cache_async_function_expiry_fail(mocker: MockerFixture) -> None:
     """It should fail when we pass the async function to the sync cache"""
     counter = mocker.MagicMock(return_value=None)
 
-    async def is_item_expired(value: CachedValue) -> bool:
+    async def is_item_expired(value: CachedItem) -> bool:
         return value.value > 1
 
     @alru_cache(expiration=is_item_expired)
