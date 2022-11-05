@@ -148,7 +148,10 @@ async def get_data(value: str) -> int:
     return len(value)
 
 # Date expiration, expires at midnight (UTC)
-@alru_cache(expiration="2012-04-56", expired_items_auto_removal_period=timedelta(seconds=300))
+@alru_cache(
+    expiration="2012-04-56",
+    expired_items_auto_removal_period=timedelta(seconds=300),
+)
 async def get_data(value: str) -> int:
     return len(value)
 
@@ -176,10 +179,14 @@ b'1494012444' -> datetime(2017, 5, 5, 19, 27, 24, tzinfo=timezone.utc)
 '2012-4-9 4:8:16' -> datetime(2012, 4, 9, 4, 8, 16)
 '2012-04-23T09:15:00Z' -> datetime(2012, 4, 23, 9, 15, 0, 0, timezone.utc)
 '2012-4-9 4:8:16-0320' -> datetime(2012, 4, 9, 4, 8, 16, 0, create_tz(-200))
-'2012-04-23T10:20:30.400+02:30' -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(150))
-'2012-04-23T10:20:30.400+02' -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(120))
-'2012-04-23T10:20:30.400-02' -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(-120))
-b'2012-04-23T10:20:30.400-02' -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(-120))
+'2012-04-23T10:20:30.400+02:30'
+    -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(150))
+'2012-04-23T10:20:30.400+02'
+    -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(120))
+'2012-04-23T10:20:30.400-02'
+    -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(-120))
+b'2012-04-23T10:20:30.400-02'
+    -> datetime(2012, 4, 23, 10, 20, 30, 400_000, create_tz(-120))
 datetime(2017, 5, 5) -> datetime(2017, 5, 5)
 0 -> datetime(1970, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
@@ -282,7 +289,8 @@ b'PT0.000005S' -> timedelta(microseconds=5)
 '1minute 10hour 10second' -> timedelta(seconds=36070)
 '1minutes 10hours 10seconds' -> timedelta(seconds=36070)
 '1 minutes 2 days 10 hours 10 seconds' -> timedelta(seconds=208870)
-'1 m 2 d 10 h 10 s' -> '1 minute 2 days 10 hours 10 seconds' -> timedelta(seconds=208870)
+'1 m 2 d 10 h 10 s' -> '1 minute 2 days 10 hours 10 seconds'
+    -> timedelta(seconds=208870)
 '1 minute 2 day 10 hours 10 seconds' -> timedelta(seconds=208870)
 """
 ```
@@ -378,10 +386,14 @@ await client.post("/raspberry_pi")
 # Once done clear the cache
 await get_client.clear_cache()
 
-# In case of returning multiple clients a list of data pointers can be used to wrap them
-# If the data pointer does not point to any value from the result then the error is thrown
-# To prevent the error from happening you can append suffix :ignore_missing to the data pointer
-@alru_cache(wrap_async_exit_stack=["$.clients.database:ignore_missing", "$.clients.http"])
+"""
+In case of returning multiple clients a list of data pointers can be used to wrap them
+If the data pointer does not point to any value from the result then the error is thrown
+To prevent the error from happening you can append suffix :ignore_missing to the pointer
+"""
+@alru_cache(
+    wrap_async_exit_stack=["$.clients.database:ignore_missing", "$.clients.http"]
+)
 def get_clients() -> Any:
     return {
         "token": "p@ss123",

@@ -15,7 +15,7 @@ if sys.version_info < (3, 10):
 else:
     from typing import ParamSpec
 
-from aquiche._cache import AsyncCachedRecord, SyncCachedRecord
+from aquiche._async_cache import AsyncCachedRecord
 from aquiche._cache_params import CacheParameters, validate_cache_params
 from aquiche._core import CacheTaskExecutionInfo
 from aquiche.errors import InvalidCacheConfig
@@ -27,9 +27,10 @@ from aquiche._expiration import (
 )
 from aquiche._hash import make_key
 from aquiche._repository import CacheRepository, LRUCacheRepository
+from aquiche._sync_cache import SyncCachedRecord
 from aquiche.utils._async_utils import awaitify
-from aquiche.utils._time_parse import parse_duration
 from aquiche.utils._singleton import Singleton
+from aquiche.utils._time_parse import parse_duration
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -135,7 +136,7 @@ def alru_cache(
             )
         else:
             wrapper = _sync_lru_cache_wrapper(
-                user_function=user_function,
+                user_function=user_function,  # type: ignore
                 **asdict(cache_params),
             )
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
@@ -149,7 +150,7 @@ def alru_cache(
             )
         else:
             wrapper = _sync_lru_cache_wrapper(
-                user_function=user_function,
+                user_function=user_function,  # type: ignore
                 **asdict(cache_params),
             )
         wrapper.cache_parameters = lambda: cache_params  # type: ignore
