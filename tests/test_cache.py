@@ -32,7 +32,7 @@ async def test_cache_stampede(mocker: MockerFixture) -> None:
 
     async def test_function() -> int:
         # We try to suspend the execution
-        asleep(0)
+        await asleep(0)
         return 42
 
     get_function = mocker.AsyncMock(side_effect=test_function)
