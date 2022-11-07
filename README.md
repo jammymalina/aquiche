@@ -59,9 +59,9 @@ The decorator is very similar to [`functools.lru_cache`](https://docs.python.org
 
 Decorator to wrap a function with a memoizing callable that saves up to the maxsize most recent calls. It can save time when an expensive or IO bound function is periodically called with the same arguments. The decorator works both with sync and async functions. It is safe to use in multithreaded and async applications.
 
-Since a dictionary is used to cache results, the positional and keyword arguments to the function must be hashable.
+Since a dictionary is used to cache results, the positional and keyword arguments to the function must be hashable or the key parameter has to be provided.
 
-Distinct argument patterns may be considered to be distinct calls with separate cache entries. For example, f(a=1, b=2) and f(b=2, a=1) differ in their keyword argument order and may have two separate cache entries.
+Distinct argument patterns may be considered to be distinct calls with separate cache entries. For example, f(a=1, b=2) and f(b=2, a=1) differ in their keyword argument order and may have two separate cache entries. If you provide the key parameter the `str.format()` is used to generate the key. `Args` and `kwargs` are passed to the format function. Named `args` are passed to the function both as `args` and they are included in the `kwargs` as well. The special option "single key" can be used for the functions with no arguments or with only self/cls argument. In that case the key will have the same value no matter the `args` or `kwargs`.
 
 The wrapped function is instrumented with a `cache_parameters()` function that returns a dataclass showing the values for all the set parameters. This is for information purposes only. Mutating the values has no effect.
 
@@ -75,7 +75,7 @@ The original underlying function is accessible through the **wrapped** attribute
 
 The cache keeps references to the arguments and returns values until they age out of the cache or until the cache is cleared. The cache can be periodically checked for expired items.
 
-If a method is cached, the self instance argument is included in the cache. If you are caching a method it is strongly recommended to add `__eq__` and `__hash__` methods to the class.
+If a method is cached, the self instance argument is included in the cache. If you are caching a method it is strongly recommended to add `__eq__` and `__hash__` methods to the class or set the key parameter.
 
 ## Guide
 

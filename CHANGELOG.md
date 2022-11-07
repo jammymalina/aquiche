@@ -10,12 +10,10 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 ### Added
 
 - It is possible to set the key template
-- Added an option to clear the cache on the application shutdown
 
 ### Changed
 
 - Removed the supported python versions badge from the README
-- The decorated functions now each have separate event loops
 
 ### Fixed
 
