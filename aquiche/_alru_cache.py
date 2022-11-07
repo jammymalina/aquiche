@@ -25,7 +25,7 @@ from aquiche._expiration import (
     get_cache_expiration,
     NonExpiringCacheExpiration,
 )
-from aquiche._hash import make_key
+from aquiche._hash import get_key_resolver, KeyType
 from aquiche._repository import CacheRepository, LRUCacheRepository
 from aquiche._sync_cache import SyncCachedRecord
 from aquiche.utils._async_utils import awaitify
@@ -89,6 +89,7 @@ class CacheCleanupRegistry(metaclass=Singleton):
 def alru_cache(
     __func: Union[Callable[P, T], None] = None,
     enabled: bool = True,
+    key: Optional[KeyType] = None,
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None,
@@ -100,6 +101,7 @@ def alru_cache(
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     validate_cache_params(
         enabled=enabled,
+        key=key,
         maxsize=maxsize,
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
@@ -111,6 +113,7 @@ def alru_cache(
     )
     cache_params = CacheParameters(
         enabled=enabled,
+        key=key,
         maxsize=maxsize,
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
@@ -177,6 +180,7 @@ def clear_all_sync() -> None:
 def _sync_lru_cache_wrapper(
     user_function: Callable[P, T],
     enabled: bool,
+    key: Optional[KeyType],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
@@ -207,7 +211,7 @@ def _sync_lru_cache_wrapper(
     def __remove_expired() -> None:
         nonlocal last_expiration_check
         last_expiration_check = datetime.now(timezone.utc)
-        removed_items = cache.filter(lambda _key, record: not record.is_expired())
+        removed_items = cache.filter(lambda record: not record.is_expired())
         for removed_item in removed_items:
             removed_item.destroy()
 
@@ -228,6 +232,8 @@ def _sync_lru_cache_wrapper(
             return result
 
     elif maxsize is None:
+
+        make_key = get_key_resolver(key, user_function)
 
         def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
@@ -264,6 +270,7 @@ def _sync_lru_cache_wrapper(
             return record.get_cached()
 
     else:
+        make_key = get_key_resolver(key, user_function)
 
         def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency
@@ -314,7 +321,7 @@ def _sync_lru_cache_wrapper(
         """Clear the cache and cache statistics"""
         nonlocal cache, hits, misses
         with lock:
-            cache.every(lambda _key, value: value.destroy())
+            cache.every(lambda value: value.destroy())
             cache.clear()
             hits = misses = 0
 
@@ -335,6 +342,7 @@ def _sync_lru_cache_wrapper(
 def _async_lru_cache_wrapper(
     user_function: Callable[P, T],
     enabled: Union[bool, Callable[[], bool]],
+    key: Optional[KeyType],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
@@ -359,10 +367,10 @@ def _async_lru_cache_wrapper(
             return enabled()
         return enabled
 
-    async def __expiry_filter_lambda(_key: str, record: AsyncCachedRecord) -> bool:
+    async def __expiry_filter_lambda(record: AsyncCachedRecord) -> bool:
         return not await record.is_expired()
 
-    async def __apply_destroy_lambda(_key: str, record: AsyncCachedRecord) -> None:
+    async def __apply_destroy_lambda(record: AsyncCachedRecord) -> None:
         await record.destroy()
 
     async def __remove_expired() -> None:
@@ -391,6 +399,7 @@ def _async_lru_cache_wrapper(
             return result
 
     elif maxsize is None:
+        make_key = get_key_resolver(key, user_function)
 
         async def wrapper(*args, **kwargs) -> T:
             # Simple caching without ordering or size limit
@@ -428,6 +437,7 @@ def _async_lru_cache_wrapper(
             return await record.get_cached()
 
     else:
+        make_key = get_key_resolver(key, user_function)
 
         async def wrapper(*args, **kwargs) -> T:
             # Size limited caching that tracks accesses by recency

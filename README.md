@@ -5,7 +5,6 @@ Fast, unopinionated, minimalist cache decorator for [python](https://www.python.
 [<img alt="Link to the github repository" src="https://img.shields.io/badge/github-jammymalina/aquiche-8da0cb?style=for-the-badge&labelColor=555555&logo=github">](https://github.com/jammymalina/aquiche)
 [<img alt="Link to the build" src="https://img.shields.io/github/workflow/status/jammymalina/aquiche/CI?style=for-the-badge">](https://github.com/jammymalina/aquiche/actions?query=branch%3Amain+)
 [<img alt="Link to PyPi" src="https://img.shields.io/pypi/v/aquiche?style=for-the-badge">](https://pypi.org/project/aquiche)
-<img alt="Supported python versions" src="https://img.shields.io/pypi/pyversions/aquiche?style=for-the-badge">
 
 ```python
 import httpx

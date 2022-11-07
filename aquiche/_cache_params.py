@@ -3,11 +3,13 @@ from typing import Any, List, Optional, Tuple, Union, get_args
 
 from aquiche.errors import InvalidCacheConfig
 from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
+from aquiche._hash import KeyType
 
 
 @dataclass
 class CacheParameters:
     enabled: bool = False
+    key: Optional[KeyType] = None
     maxsize: Optional[int] = None
     expiration: Optional[CacheExpirationValue] = None
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
@@ -24,6 +26,7 @@ def __extract_type_names(types: Tuple[Any, ...]) -> str:
 
 def validate_cache_params(
     enabled: bool,
+    key: Optional[KeyType],
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
@@ -36,6 +39,10 @@ def validate_cache_params(
     errors = []
     if not isinstance(enabled, bool):
         errors += ["enabled should be either bool or a callable function"]
+    if not (key is None or isinstance(key, get_args(KeyType))):
+        errors += [
+            f"key should be either None or one of these types: {__extract_type_names(get_args(CacheExpirationValue))}"
+        ]
     if not (maxsize is None or isinstance(maxsize, int)):
         errors += ["maxsize should be int or None"]
     if not (expiration is None or isinstance(expiration, get_args(CacheExpirationValue))):

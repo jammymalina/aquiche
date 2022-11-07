@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 from unittest.mock import ANY, call
 
 import pytest
@@ -42,7 +42,7 @@ def test_cache_default_params(mocker: MockerFixture) -> None:
 
 @pytest.mark.freeze_time
 def test_cache_default_params_decorator_variation(mocker: MockerFixture) -> None:
-    """It should cache the results of the simple function, default cache settings"""
+    """It should cache the results of the function, default cache settings"""
     counter = mocker.MagicMock(return_value=None)
 
     @alru_cache()
@@ -61,6 +61,47 @@ def test_cache_default_params_decorator_variation(mocker: MockerFixture) -> None
         misses=4,
         maxsize=None,
         current_size=4,
+        last_expiration_check=ANY,
+    )
+
+
+@pytest.mark.freeze_time
+def test_cache_key_decorator_variation(mocker: MockerFixture) -> None:
+    """It should cache the results of the function, key template is set"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache(key="env:{environment}:id:{user[id]}")
+    def get_username(environment: str, user: Dict) -> int:
+        nonlocal counter
+        counter()
+        return user["username"]
+
+    values = [
+        ("dev", {"id": "id1", "username": "file.peter"}),
+        ("prod", {"id": "id2", "username": "doe.jane"}),
+        ("dev", {"id": "id1", "username": "file.peter"}),  # duplicate
+        ("prod", {"id": "id1", "username": "file.peter"}),
+        ("prod", {"id": "id3", "username": "smith.john"}),
+        ("dev", {"id": "id5", "username": "brave.richard"}),
+        ("prod", {"id": "id3", "username": "smith.john"}),  # duplicate
+    ]
+    results = [get_username(environment, value) for environment, value in values]
+
+    assert counter.call_count == 5
+    assert results == [
+        "file.peter",
+        "doe.jane",
+        "file.peter",
+        "file.peter",
+        "smith.john",
+        "brave.richard",
+        "smith.john",
+    ]
+    assert get_username.cache_info() == CacheInfo(
+        hits=2,
+        misses=5,
+        maxsize=None,
+        current_size=5,
         last_expiration_check=ANY,
     )
 

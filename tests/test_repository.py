@@ -57,11 +57,11 @@ def test_lru_cache_every(mocker: MockerFixture) -> None:
     assert apply_function.call_count == 5
     apply_function.assert_has_calls(
         [
-            call("a", 10),
-            call("b", 20),
-            call("c", 30),
-            call("d", 40),
-            call("e", 50),
+            call(10),
+            call(20),
+            call(30),
+            call(40),
+            call(50),
         ],
         any_order=True,
     )
@@ -84,11 +84,11 @@ async def test_lru_cache_every_async(mocker: MockerFixture) -> None:
     assert apply_function.call_count == 5
     apply_function.assert_has_calls(
         [
-            call("a", 10),
-            call("b", 20),
-            call("c", 30),
-            call("d", 40),
-            call("e", 50),
+            call(10),
+            call(20),
+            call(30),
+            call(40),
+            call(50),
         ],
         any_order=True,
     )
@@ -96,7 +96,7 @@ async def test_lru_cache_every_async(mocker: MockerFixture) -> None:
 
 def test_lru_cache_filter(mocker: MockerFixture) -> None:
     """It should filter out odd numbers"""
-    filter_function = mocker.MagicMock(side_effect=lambda _key, val: val % 2 == 0 or val is None)
+    filter_function = mocker.MagicMock(side_effect=lambda val: val % 2 == 0 or val is None)
     apply_function = mocker.MagicMock(return_value=None)
 
     cache_repo = LRUCacheRepository()
@@ -113,11 +113,11 @@ def test_lru_cache_filter(mocker: MockerFixture) -> None:
     assert apply_function.call_count == 5
     apply_function.assert_has_calls(
         [
-            call(ANY, 18),
-            call(ANY, 22),
-            call(ANY, 14),
-            call(ANY, 18),
-            call(ANY, 20),
+            call(18),
+            call(22),
+            call(14),
+            call(18),
+            call(20),
         ],
         any_order=True,
     )
@@ -125,7 +125,7 @@ def test_lru_cache_filter(mocker: MockerFixture) -> None:
 
 async def test_lru_cache_filter_async(mocker: MockerFixture) -> None:
     """It should filter out odd numbers, using async function"""
-    filter_function = mocker.AsyncMock(side_effect=lambda _key, val: val % 2 == 0 or val is None)
+    filter_function = mocker.AsyncMock(side_effect=lambda val: val % 2 == 0 or val is None)
     apply_function = mocker.AsyncMock(return_value=None)
 
     cache_repo = LRUCacheRepository()
@@ -142,11 +142,11 @@ async def test_lru_cache_filter_async(mocker: MockerFixture) -> None:
     assert apply_function.call_count == 5
     apply_function.assert_has_calls(
         [
-            call(ANY, 18),
-            call(ANY, 22),
-            call(ANY, 14),
-            call(ANY, 18),
-            call(ANY, 20),
+            call(18),
+            call(22),
+            call(14),
+            call(18),
+            call(20),
         ],
         any_order=True,
     )
