@@ -1,43 +1,43 @@
 from abc import ABCMeta, abstractmethod
 from asyncio import gather
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, Hashable, List, Optional
 
 
 class CacheRepository(metaclass=ABCMeta):
     @abstractmethod
-    def add(self, key: str, value: Any) -> None:
+    def add(self, key: Hashable, value: Any) -> None:
         ...
 
     @abstractmethod
-    def get(self, key: str) -> Any:
+    def get(self, key: Hashable) -> Any:
         ...
 
     @abstractmethod
-    def get_no_adjust(self, key: str) -> Any:
+    def get_no_adjust(self, key: Hashable) -> Any:
         ...
 
     @abstractmethod
-    def add_no_adjust(self, key: str, value: Any) -> None:
+    def add_no_adjust(self, key: Hashable, value: Any) -> None:
         ...
 
     @abstractmethod
-    def filter(self, condition: Callable[[str, Any], bool]) -> List[Any]:
+    def filter(self, condition: Callable[[Any], bool]) -> List[Any]:
         ...
 
     @abstractmethod
-    async def filter_async(self, condition: Callable[[str, Any], Awaitable[bool]]) -> List[Any]:
+    async def filter_async(self, condition: Callable[[Any], Awaitable[bool]]) -> List[Any]:
         ...
 
     @abstractmethod
-    def every(self, apply_function: Callable[[str, Any], None]) -> None:
+    def every(self, apply_function: Callable[[Any], None]) -> None:
         ...
 
     @abstractmethod
-    async def every_async(self, apply_function: Callable[[str, Any], Awaitable[None]]) -> None:
+    async def every_async(self, apply_function: Callable[[Any], Awaitable[None]]) -> None:
         ...
 
     @abstractmethod
-    def has(self, key: str) -> bool:
+    def has(self, key: Hashable) -> bool:
         ...
 
     @abstractmethod
@@ -56,7 +56,7 @@ class LRUCacheRepository(CacheRepository):
     KEY: int = 2
     RESULT: int = 3
 
-    __cache: Dict[str, Any]
+    __cache: Dict[Hashable, Any]
     __root: List
     __maxsize: int
     __full: bool
@@ -69,7 +69,7 @@ class LRUCacheRepository(CacheRepository):
         self.__maxsize = maxsize or 0
         self.__full = False
 
-    def add(self, key: str, value: Any) -> None:
+    def add(self, key: Hashable, value: Any) -> None:
         if self.has(key):
             # Getting here means that this same key was added to the
             # cache while the lock was released.  Since the link
@@ -106,7 +106,7 @@ class LRUCacheRepository(CacheRepository):
             # which could potentially be wrapped in an lru_cache itself
             self.__full = (self.__maxsize != 0) and self.get_size() >= self.__maxsize
 
-    def get(self, key: str) -> Optional[Any]:
+    def get(self, key: Hashable) -> Optional[Any]:
         link = self.__cache.get(key)
         if link is None:
             return None
@@ -120,52 +120,52 @@ class LRUCacheRepository(CacheRepository):
         link[self.NEXT] = self.__root
         return result
 
-    def get_no_adjust(self, key: str) -> Any:
+    def get_no_adjust(self, key: Hashable) -> Any:
         link = self.__cache.get(key)
         if link is None:
             return None
         return link[self.RESULT]
 
-    def add_no_adjust(self, key: str, value: Any) -> None:
+    def add_no_adjust(self, key: Hashable, value: Any) -> None:
         last = self.__root[self.PREV]
         link = [last, self.__root, key, value]
         last[self.NEXT] = self.__root[self.PREV] = self.__cache[key] = link
         self.__full = (self.__maxsize != 0) and self.get_size() >= self.__maxsize
 
-    def filter(self, condition: Callable[[str, Any], bool]) -> List[Any]:
+    def filter(self, condition: Callable[[Any], bool]) -> List[Any]:
         removed_items = []
 
         link = self.__root[self.NEXT]
 
         while link is not self.__root:
             key, value = link[self.NEXT], link[self.RESULT]
-            if not condition(key, value):
+            if not condition(value):
                 removed_items.append(self.__delete_node(link))
             link = link[self.NEXT]
         return removed_items
 
-    async def filter_async(self, condition: Callable[[str, Any], Awaitable[bool]]) -> List[Any]:
+    async def filter_async(self, condition: Callable[[Any], Awaitable[bool]]) -> List[Any]:
         removed_items = []
 
         link = self.__root[self.NEXT]
 
         while link is not self.__root:
-            key, value = link[self.NEXT], link[self.RESULT]
-            if not await condition(key, value):
+            value = link[self.RESULT]
+            if not await condition(value):
                 removed_items.append(self.__delete_node(link))
             link = link[self.NEXT]
         return removed_items
 
-    def every(self, apply_function: Callable[[str, Any], None]) -> None:
+    def every(self, apply_function: Callable[[Any], None]) -> None:
         for link in self.__cache.values():
-            key, result = link[self.KEY], link[self.RESULT]
-            apply_function(key, result)
+            result = link[self.RESULT]
+            apply_function(result)
 
-    async def every_async(self, apply_function: Callable[[str, Any], Awaitable[None]]) -> None:
-        apply_tasks = (apply_function(link[self.KEY], link[self.RESULT]) for link in self.__cache.values())
+    async def every_async(self, apply_function: Callable[[Any], Awaitable[None]]) -> None:
+        apply_tasks = (apply_function(link[self.RESULT]) for link in self.__cache.values())
         await gather(*apply_tasks)
 
-    def has(self, key: str) -> bool:
+    def has(self, key: Hashable) -> bool:
         return key in self.__cache
 
     def clear(self) -> None:

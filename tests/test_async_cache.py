@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 from unittest.mock import ANY, call
 
 import pytest
@@ -61,6 +61,47 @@ async def test_async_cache_default_params_decorator_variation(mocker: MockerFixt
         misses=4,
         maxsize=None,
         current_size=4,
+        last_expiration_check=ANY,
+    )
+
+
+@pytest.mark.freeze_time
+async def test_async_cache_key_decorator_variation(mocker: MockerFixture) -> None:
+    """It should cache the results of the function, key template is set"""
+    counter = mocker.AsyncMock(return_value=None)
+
+    @alru_cache(key="env:{environment}:id:{user[id]}")
+    async def get_username(environment: str, user: Dict) -> int:
+        nonlocal counter
+        await counter()
+        return user["username"]
+
+    values = [
+        ("dev", {"id": "id1", "username": "file.peter"}),
+        ("prod", {"id": "id2", "username": "doe.jane"}),
+        ("dev", {"id": "id1", "username": "file.peter"}),  # duplicate
+        ("prod", {"id": "id1", "username": "file.peter"}),
+        ("prod", {"id": "id3", "username": "smith.john"}),
+        ("dev", {"id": "id5", "username": "brave.richard"}),
+        ("prod", {"id": "id3", "username": "smith.john"}),  # duplicate
+    ]
+    results = [await get_username(environment, value) for environment, value in values]
+
+    assert counter.await_count == 5
+    assert results == [
+        "file.peter",
+        "doe.jane",
+        "file.peter",
+        "file.peter",
+        "smith.john",
+        "brave.richard",
+        "smith.john",
+    ]
+    assert await get_username.cache_info() == CacheInfo(
+        hits=2,
+        misses=5,
+        maxsize=None,
+        current_size=5,
         last_expiration_check=ANY,
     )
 
