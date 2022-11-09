@@ -9,3 +9,4 @@ from aquiche._alru_cache import (
 
 from aquiche._core import CachedItem
 from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
+from aquiche._hash import Key

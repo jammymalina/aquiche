@@ -9,6 +9,7 @@ from aquiche import (
     CacheInfo,
     clear_all,
     clear_all_sync,
+    Key,
 )
 from aquiche._core import CachedItem
 from aquiche.errors import InvalidCacheConfig
@@ -71,7 +72,7 @@ def test_cache_key_decorator_variation(mocker: MockerFixture) -> None:
     counter = mocker.MagicMock(return_value=None)
 
     @alru_cache(key="env:{environment}:id:{user[id]}")
-    def get_username(environment: str, user: Dict) -> int:
+    def get_username(environment: str, user: Dict) -> str:
         nonlocal counter
         counter()
         return user["username"]
@@ -102,6 +103,36 @@ def test_cache_key_decorator_variation(mocker: MockerFixture) -> None:
         misses=5,
         maxsize=None,
         current_size=5,
+        last_expiration_check=ANY,
+    )
+
+
+@pytest.mark.freeze_time
+def test_cache_single_key(mocker: MockerFixture) -> None:
+    """It should cache the results of the function, single key is always used - all functions calls share the single cache value"""
+    counter = mocker.MagicMock(return_value=None)
+
+    @alru_cache(key=Key.SINGLE_KEY)
+    def get_username(environment: str) -> int:
+        nonlocal counter
+        counter()
+        return len(environment)
+
+    values = [
+        "prod",
+        "dev",
+        "system",
+        "random_stage",
+    ]
+    results = [get_username(environment) for environment in values]
+
+    assert counter.call_count == 1
+    assert results == [4, 4, 4, 4]
+    assert get_username.cache_info() == CacheInfo(
+        hits=3,
+        misses=1,
+        maxsize=None,
+        current_size=1,
         last_expiration_check=ANY,
     )
 
