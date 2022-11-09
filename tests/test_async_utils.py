@@ -20,17 +20,32 @@ class Person:
         self.pet = Pet()
         self.residence = Residence()
 
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, Person):
+            return False
+        return self.pet == obj.pet and self.residence == obj.residence
+
 
 class Pet:
     def __init__(self, name="Fido", species="Dog"):
         self.name = name
         self.species = species
 
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, Pet):
+            return False
+        return self.name == obj.name and self.species == obj.species
+
 
 class Residence:
     def __init__(self, type="House", sqft=200):
         self.type = type
         self.sqft = sqft
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, Residence):
+            return False
+        return self.type == obj.type and self.sqft == obj.sqft
 
 
 @pytest.fixture
@@ -170,4 +185,52 @@ async def test_missing_value_missing_fail(mocker: MockerFixture, async_exit_stac
     assert (
         str(err_info.value)
         == "Unable to extract value from an object, path does not point to any valid value: 'doom.boom.bottle.of.rum'"
+    )
+
+
+async def test_wrap_all_dict(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
+    """It should wrap all the values in dictionary with async exit stack"""
+    mixin = AsyncWrapperMixin()
+
+    data = {
+        "a": 1,
+        "b": 12,
+        "c": 155,
+        "d": 246,
+        "e": 19,
+    }
+    _exit_stack, wrapped_data = await mixin.wrap_async_exit_stack(data, "*")
+
+    assert wrapped_data == {
+        "a": WrapperTest(1),
+        "b": WrapperTest(12),
+        "c": WrapperTest(155),
+        "d": WrapperTest(246),
+        "e": WrapperTest(19),
+    }
+    # original data is modified as well
+    assert wrapped_data == data
+    assert async_exit_stack.enter_async_context.await_count == 5
+    async_exit_stack.enter_async_context.assert_has_awaits(
+        [call(1), call(12), call(155), call(246), call(19)], any_order=True
+    )
+
+
+async def test_wrap_all_object(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
+    """It should wrap all the values in the object with async exit stack"""
+    mixin = AsyncWrapperMixin()
+
+    data = Person()
+    data.pet = Pet(name="Salem", species="Cat")
+    data.residence = Residence(type="Studio", sqft=100)
+
+    _exit_stack, wrapped_data = await mixin.wrap_async_exit_stack(data, "*")
+
+    assert wrapped_data.pet == WrapperTest(Pet(name="Salem", species="Cat"))
+    assert wrapped_data.residence == WrapperTest(Residence(type="Studio", sqft=100))
+    # original data is modified as well
+    assert wrapped_data == data
+    assert async_exit_stack.enter_async_context.await_count == 2
+    async_exit_stack.enter_async_context.assert_has_awaits(
+        [call(Pet(name="Salem", species="Cat")), call(Residence(type="Studio", sqft=100))], any_order=True
     )

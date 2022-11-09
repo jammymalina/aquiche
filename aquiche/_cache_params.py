@@ -13,7 +13,7 @@ class CacheParameters:
     maxsize: Optional[int] = None
     expiration: Optional[CacheExpirationValue] = None
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
-    wrap_async_exit_stack: Union[bool, List[str], None] = None
+    wrap_async_exit_stack: Union[bool, str, List[str], None] = None
     negative_cache: bool = False
     negative_expiration: Optional[CacheExpirationValue] = None
     retry_count: int = 0
@@ -30,7 +30,7 @@ def validate_cache_params(
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
-    wrap_async_exit_stack: Union[bool, List[str], None],
+    wrap_async_exit_stack: Union[bool, str, List[str], None],
     negative_cache: bool,
     negative_expiration: Optional[CacheExpirationValue],
     retry_count: int,
@@ -64,6 +64,7 @@ def validate_cache_params(
     if not (
         wrap_async_exit_stack is None
         or isinstance(wrap_async_exit_stack, bool)
+        or wrap_async_exit_stack == "*"
         or (
             isinstance(wrap_async_exit_stack, list)
             and all((isinstance(wrapper, str) for wrapper in wrap_async_exit_stack))
