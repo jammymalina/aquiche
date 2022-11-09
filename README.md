@@ -91,6 +91,24 @@ def cache_function(value: str) -> int:
     return len(value)
 ```
 
+### Key
+
+It is possible to override the default cache key generation either with the custom template or with one of the special options. If the custom template is provided the `str.format()` will be used to generate the key. Both the `*args` and `**kwargs` are passed to the `str.format()`. `Kwargs` are extended with the named `args` and the defaults are applied.
+
+If you want the cache key to always result in the same value the special option `Key.SINGLE_KEY` can be used. This option is only recommended for functions where it is desired to ignore `args` and `kwargs`. The size of this cache will never exceed 1.
+
+```python
+from aquiche import alru_cache, Key
+
+@alru_cache(key="env:{environment.id}:id:{user[id]}")
+async def get_username(environment: object, user: dict) -> str:
+    return user["username"]
+
+@alru_cache(key=Key.SINGLE_KEY)
+async def get_user_count() -> int:
+    return 10
+```
+
 ### Maxsize
 
 The maxsize param behaves the same as in `functools.lru_cache`. If set to `None` the cache can grow without bound. If set, the memoizing decorator saves up to the maxsize most recent calls. It is set to `None` by default.

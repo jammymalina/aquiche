@@ -9,6 +9,7 @@ from aquiche import (
     CacheInfo,
     clear_all,
     clear_all_sync,
+    Key,
 )
 from aquiche._core import CachedValue
 
@@ -71,7 +72,7 @@ async def test_async_cache_key_decorator_variation(mocker: MockerFixture) -> Non
     counter = mocker.AsyncMock(return_value=None)
 
     @alru_cache(key="env:{environment}:id:{user[id]}")
-    async def get_username(environment: str, user: Dict) -> int:
+    async def get_username(environment: str, user: Dict) -> str:
         nonlocal counter
         await counter()
         return user["username"]
@@ -102,6 +103,36 @@ async def test_async_cache_key_decorator_variation(mocker: MockerFixture) -> Non
         misses=5,
         maxsize=None,
         current_size=5,
+        last_expiration_check=ANY,
+    )
+
+
+@pytest.mark.freeze_time
+async def test_async_cache_single_key(mocker: MockerFixture) -> None:
+    """It should cache the results of the function, single key is always used - all functions calls share the single cache value"""
+    counter = mocker.AsyncMock(return_value=None)
+
+    @alru_cache(key=Key.SINGLE_KEY)
+    async def get_username(environment: str) -> int:
+        nonlocal counter
+        await counter()
+        return len(environment)
+
+    values = [
+        "prod",
+        "dev",
+        "system",
+        "random_stage",
+    ]
+    results = [await get_username(environment) for environment in values]
+
+    assert counter.await_count == 1
+    assert results == [4, 4, 4, 4]
+    assert await get_username.cache_info() == CacheInfo(
+        hits=3,
+        misses=1,
+        maxsize=None,
+        current_size=1,
         last_expiration_check=ANY,
     )
 
