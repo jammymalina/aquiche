@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Added
 
-- Added new cache parameter - `exit_stack_close_delay`
+- Added a new cache parameter - `exit_stack_close_delay`
 - Added 2 new functions - `cancel_exit_stack_close_operations` and `await_exit_stack_close_operations`
 - Added a new option for `wrap_async_exit_stack` - `*` which wraps all attributes/items in the simple object or dict in the `AsyncExitStack`
 
