@@ -34,6 +34,9 @@ class DestroyRecordTaskRegistry(metaclass=Singleton):
     def __init__(self) -> None:
         self.__tasks = set()
 
-    def add_task(self, task: Task):
+    def add_task(self, task: Task) -> None:
         self.__tasks.add(task)
         task.add_done_callback(self.__tasks.discard)
+
+    def get_tasks(self) -> List[Task]:
+        return list(self.__tasks)

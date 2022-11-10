@@ -1,5 +1,5 @@
-from typing import Any, Dict
-from unittest.mock import ANY, call
+from typing import Any, Dict, Iterable
+from unittest.mock import ANY, call, MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
@@ -9,9 +9,19 @@ from aquiche import (
     CacheInfo,
     clear_all,
     clear_all_sync,
+    await_exit_stack_close_operations,
+    cancel_exit_stack_close_operations,
     Key,
 )
 from aquiche._core import CachedValue
+
+
+@pytest.fixture
+def async_context_manager(mocker: MockerFixture) -> Iterable[MagicMock]:
+    context_manager = mocker.MagicMock()
+    context_manager.__aenter__ = mocker.AsyncMock(return_value=None)
+    context_manager.__aexit__ = mocker.AsyncMock(return_value=None)
+    yield context_manager
 
 
 @pytest.mark.freeze_time
@@ -537,3 +547,40 @@ async def test_async_retry_cache(mocker: MockerFixture) -> None:
     await cache_function("a")
 
     assert counter.call_count == 4
+
+
+@pytest.mark.freeze_time
+async def test_wrap_exit_stack(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
+    """It should wrap the value with the async exit stack and close the async exit stack on clear"""
+    counter = mocker.AsyncMock(return_value=None)
+
+    @alru_cache(wrap_async_exit_stack=True)
+    async def cache_function(_value: str) -> int:
+        nonlocal counter
+        await counter()
+        return async_context_manager
+
+    await cache_function("a")
+    await clear_all()
+
+    async_context_manager.__aenter__.assert_awaited_once()
+    async_context_manager.__aexit__.assert_awaited_once()
+
+
+@pytest.mark.freeze_time
+async def test_wrap_exit_stack_delay_cancel(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
+    """It should wrap the value with the async exit stack and cancel the async exit stack close operations"""
+    counter = mocker.AsyncMock(return_value=None)
+
+    @alru_cache(wrap_async_exit_stack=True, exit_stack_close_delay="1day")
+    async def cache_function(_value: str) -> int:
+        nonlocal counter
+        await counter()
+        return async_context_manager
+
+    await cache_function("a")
+    await clear_all()
+    await cancel_exit_stack_close_operations()
+
+    async_context_manager.__aenter__.assert_awaited_once()
+    async_context_manager.__aexit__.assert_not_awaited()

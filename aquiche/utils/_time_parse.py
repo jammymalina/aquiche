@@ -196,7 +196,7 @@ def parse_datetime(value: Union[datetime, StrBytesIntFloat]) -> datetime:
         raise errors.DateTimeError(value) from err
 
 
-def parse_duration(value: StrBytesIntFloat) -> timedelta:
+def parse_duration(value: Union[StrBytesIntFloat, timedelta]) -> timedelta:
     if isinstance(value, timedelta):
         return value
 

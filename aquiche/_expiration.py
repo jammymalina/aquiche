@@ -13,6 +13,12 @@ CacheExpirationValue = Union[bool, int, float, str, bytes, date, datetime, time,
 DurationExpirationValue = Union[str, bytes, int, float, timedelta]
 
 
+def parse_expiration_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -> Optional[timedelta]:
+    if duration is None:
+        return None
+    return parse_duration(duration)
+
+
 def _get_cache_func_value(cached_value: CachedValue) -> CachedItem:
     assert cached_value.last_fetched is not None
     return CachedItem(value=cached_value.value, last_fetched=cached_value.last_fetched, is_error=cached_value.is_error)

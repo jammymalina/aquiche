@@ -11,7 +11,7 @@ from aquiche._expiration import (
     AsyncCacheExpiration,
     CacheExpiration,
     DurationExpirationValue,
-    parse_duration,
+    parse_expiration_duration_to_timedelta,
 )
 from aquiche._registry import DestroyRecordTaskRegistry
 from aquiche.utils._async_utils import AsyncWrapperMixin
@@ -54,11 +54,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         self.__cached_value = AsyncCachedValue()
         self.__expiration = expiration
         self.__negative_expiration = negative_expiration
-        self.__exit_stack_close_delay = (
-            exit_stack_close_delay
-            if exit_stack_close_delay is None or isinstance(exit_stack_close_delay, timedelta)
-            else parse_duration(exit_stack_close_delay)
-        )
+        self.__exit_stack_close_delay = parse_expiration_duration_to_timedelta(exit_stack_close_delay)
         self.__destroy_task_registry = destroy_task_registry
 
     async def get_cached(self) -> Any:
@@ -92,7 +88,7 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         if exit_stack is not None:
             if self.__exit_stack_close_delay is not None:
                 self.__destroy_task_registry.add_task(
-                    create_task(self.__close_exit_stack(exit_stack, self.__exit_stack_close_delay.total_seconds()))
+                    create_task(self.__close_exit_stack(exit_stack, self.__exit_stack_close_delay))
                 )
             else:
                 await exit_stack.aclose()
@@ -158,6 +154,6 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         except Exception as err:
             return err, False
 
-    async def __close_exit_stack(self, exit_stack: AsyncExitStack, exit_stack_close_delay: float) -> None:
-        await asleep(exit_stack_close_delay)
+    async def __close_exit_stack(self, exit_stack: AsyncExitStack, exit_stack_delay: timedelta) -> None:
+        await asleep(exit_stack_delay.total_seconds())
         await exit_stack.aclose()

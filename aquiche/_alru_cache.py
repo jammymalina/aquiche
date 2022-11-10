@@ -2,6 +2,7 @@ from asyncio import (
     gather,
     iscoroutinefunction,
     Lock,
+    wait_for,
 )
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
@@ -24,12 +25,12 @@ from aquiche._expiration import (
     DurationExpirationValue,
     get_cache_expiration,
     NonExpiringCacheExpiration,
+    parse_expiration_duration_to_timedelta,
 )
 from aquiche._hash import get_key_resolver, KeyType
 from aquiche._registry import CacheCleanupRegistry, DestroyRecordTaskRegistry
 from aquiche._repository import CacheRepository, LRUCacheRepository
 from aquiche._sync_cache import SyncCachedRecord
-from aquiche.utils._time_parse import parse_duration
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -52,14 +53,6 @@ class AquicheFunctionWrapper(Protocol[C]):
     remove_expired: Union[Callable[..., None], Callable[..., Awaitable[None]]]
 
     __call__: C
-
-
-def __parse_duration_to_timedelta(duration: Optional[DurationExpirationValue]) -> Optional[timedelta]:
-    if duration is None:
-        return None
-    if isinstance(duration, timedelta):
-        return duration
-    return parse_duration(duration)
 
 
 def alru_cache(
@@ -156,6 +149,26 @@ def clear_all_sync() -> None:
             clear_callback()
 
 
+async def cancel_exit_stack_close_operations() -> None:
+    task_registry = DestroyRecordTaskRegistry()
+    tasks = task_registry.get_tasks()
+    for task_iter in tasks:
+        task_iter.cancel()
+    await gather(*(tasks), return_exceptions=True)
+
+
+async def await_exit_stack_close_operations(timeout: Optional[DurationExpirationValue] = None) -> None:
+    task_registry = DestroyRecordTaskRegistry()
+    tasks = task_registry.get_tasks()
+
+    timeout = parse_expiration_duration_to_timedelta(timeout)
+    if timeout is None:
+        await gather(*tasks, return_exceptions=True)
+        return
+
+    await wait_for(gather(*tasks, return_exceptions=True), timeout.total_seconds())
+
+
 def _sync_lru_cache_wrapper(
     user_function: Callable[P, T],
     enabled: bool,
@@ -179,7 +192,7 @@ def _sync_lru_cache_wrapper(
     hits = misses = 0
     lock = RLock()  # because cache updates aren't thread-safe
     last_expiration_check = datetime.fromtimestamp(0, tz=timezone.utc)
-    expiry_period = __parse_duration_to_timedelta(expired_items_auto_removal_period)
+    expiry_period = parse_expiration_duration_to_timedelta(expired_items_auto_removal_period)
 
     def __is_cache_enabled() -> bool:
         if maxsize == 0:
@@ -339,7 +352,7 @@ def _async_lru_cache_wrapper(
     hits = misses = 0
     lock = Lock()  # because cache updates aren't concurrency-safe
     last_expiration_check = datetime.fromtimestamp(0, tz=timezone.utc)
-    expiry_period = __parse_duration_to_timedelta(expired_items_auto_removal_period)
+    expiry_period = parse_expiration_duration_to_timedelta(expired_items_auto_removal_period)
 
     destroy_task_registry = DestroyRecordTaskRegistry()
 
