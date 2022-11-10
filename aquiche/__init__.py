@@ -5,6 +5,8 @@ from aquiche._alru_cache import (
     CacheParameters,
     clear_all,
     clear_all_sync,
+    await_exit_stack_close_operations,
+    cancel_exit_stack_close_operations,
 )
 
 from aquiche._core import CachedItem

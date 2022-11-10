@@ -41,6 +41,8 @@ async def test_cache_stampede(mocker: MockerFixture) -> None:
         get_exec_info=CacheTaskExecutionInfo(),
         expiration=NonExpiringCacheExpiration(),
         negative_expiration=NonExpiringCacheExpiration(),
+        exit_stack_close_delay=None,
+        destroy_task_registry=mocker.MagicMock(),
     )
 
     values = await gather(

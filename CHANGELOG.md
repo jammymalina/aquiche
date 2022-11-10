@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [1.2.0] - 2022-11-10
+
+### Added
+
+- Added a new cache parameter - `exit_stack_close_delay`
+- Added 2 new functions - `cancel_exit_stack_close_operations` and `await_exit_stack_close_operations`
+- Added a new option for `wrap_async_exit_stack` - `*` which wraps all attributes/items in the simple object or dict in the `AsyncExitStack`
+
+### Changed
+
+### Fixed
+
 ## [1.1.1] - 2022-11-06
 
 ### Added

@@ -8,7 +8,7 @@ class CacheTaskExecutionInfo:
     fail: bool = True
     retries: int = 0
     backoff_in_seconds: Union[int, float] = 0
-    wrap_async_exit_stack: Union[bool, List[str]] = False
+    wrap_async_exit_stack: Union[bool, str, List[str]] = False
 
 
 @dataclass
