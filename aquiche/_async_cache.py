@@ -88,7 +88,14 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         if self.__cached_value.last_fetched is None:
             return
 
-        self.__destroy_task_registry.add_task(create_task(self.__close_exit_stack()))
+        exit_stack = self.__cached_value.exit_stack
+        if exit_stack is not None:
+            if self.__exit_stack_close_delay is not None:
+                self.__destroy_task_registry.add_task(
+                    create_task(self.__close_exit_stack(exit_stack, self.__exit_stack_close_delay.total_seconds()))
+                )
+            else:
+                await exit_stack.aclose()
 
         self.__cached_value.destroy_value()
 
@@ -151,11 +158,6 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         except Exception as err:
             return err, False
 
-    async def __close_exit_stack(self) -> None:
-        if self.__cached_value.exit_stack is None:
-            return
-
-        if self.__exit_stack_close_delay is not None:
-            await asleep(self.__exit_stack_close_delay.total_seconds())
-
-        await self.__cached_value.exit_stack.aclose()
+    async def __close_exit_stack(self, exit_stack: AsyncExitStack, exit_stack_close_delay: float) -> None:
+        await asleep(exit_stack_close_delay)
+        await exit_stack.aclose()
