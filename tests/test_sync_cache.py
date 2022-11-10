@@ -547,4 +547,4 @@ def test_invalid_cache_config_wrap_async_exit_stack() -> None:
         def _cache_function(_value: str) -> int:
             raise Exception("Doom has fallen upon us")
 
-    assert str(err_info.value) == "Invalid cache params - wrap_async_exit_stack can only be used with async functions"
+    assert str(err_info.value) == "Invalid cache params - exit stack parameters can only be used with async functions"

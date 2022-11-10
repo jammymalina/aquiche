@@ -138,7 +138,7 @@ class LRUCacheRepository(CacheRepository):
         link = self.__root[self.NEXT]
 
         while link is not self.__root:
-            key, value = link[self.NEXT], link[self.RESULT]
+            value = link[self.RESULT]
             if not condition(value):
                 removed_items.append(self.__delete_node(link))
             link = link[self.NEXT]
