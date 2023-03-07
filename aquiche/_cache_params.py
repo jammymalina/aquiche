@@ -78,7 +78,7 @@ def validate_cache_params(
             and all((isinstance(wrapper, str) for wrapper in wrap_async_exit_stack))
         )
     ):
-        errors += ["wrap_async_exit_stack should be either None, bool or a callable function"]
+        errors += ["wrap_async_exit_stack should be either None, bool, '*', list[str] or a callable function"]
 
     if not (exit_stack_close_delay is None or isinstance(exit_stack_close_delay, get_args(DurationExpirationValue))):
         errors += [
