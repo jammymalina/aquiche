@@ -87,7 +87,7 @@ class DateCacheExpiration(CacheExpiration):
     def is_value_expired(self, value: CachedValue) -> bool:
         if value.last_fetched is None:
             return True
-        return value.last_fetched >= self.expiry_date
+        return datetime.now(tz=timezone.utc) >= self.expiry_date
 
     def __eq__(self, other: Any) -> bool:
         return isinstance(other, DateCacheExpiration) and self.expiry_date == other.expiry_date

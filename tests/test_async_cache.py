@@ -1,3 +1,5 @@
+import asyncio
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable
 from unittest.mock import ANY, call, MagicMock
 
@@ -581,6 +583,47 @@ async def test_wrap_exit_stack_delay_cancel(mocker: MockerFixture, async_context
     await cache_function("a")
     await clear_all()
     await cancel_exit_stack_close_operations()
+
+    async_context_manager.__aenter__.assert_awaited_once()
+    async_context_manager.__aexit__.assert_not_awaited()
+
+
+@pytest.mark.freeze_time
+async def test_wrap_exit_stack_delay_await(
+    mocker: MockerFixture, async_context_manager: MagicMock, freezer: Any
+) -> None:
+    """It should wrap the value with the async exit stack and close the async exit stack with delay"""
+    counter = mocker.AsyncMock(return_value=None)
+
+    @alru_cache(wrap_async_exit_stack=True, exit_stack_close_delay="1second")
+    async def cache_function(_value: str) -> int:
+        nonlocal counter
+        await counter()
+        return async_context_manager
+
+    await cache_function("a")
+    await clear_all()
+
+    freezer.move_to(datetime.now(timezone.utc) + timedelta(minutes=5))
+    await await_exit_stack_close_operations()
+
+    async_context_manager.__aenter__.assert_awaited_once()
+    async_context_manager.__aexit__.assert_awaited_once()
+
+
+async def test_wrap_exit_stack_delay_await_timeout(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
+    """It should wrap the value with the async exit stack and timeout on waiting for the async exit stack to close"""
+    counter = mocker.AsyncMock(return_value=None)
+
+    @alru_cache(wrap_async_exit_stack=True, exit_stack_close_delay="1day")
+    async def cache_function(_value: str) -> int:
+        nonlocal counter
+        await counter()
+        return async_context_manager
+
+    await cache_function("a")
+    await clear_all()
+    await_exit_stack_close_operations(timeout="1s")
 
     async_context_manager.__aenter__.assert_awaited_once()
     async_context_manager.__aexit__.assert_not_awaited()
