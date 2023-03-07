@@ -13,7 +13,8 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 
 ### Fixed
 
-- DateCacheExpiration issue - the cache was not expiring on set datetime
+- The DateCacheExpiration issue - the cache was not expiring on current datetime
+- The error message for `wrap_async_exit_stack`
 
 ## [1.2.0] - 2022-11-10
 
