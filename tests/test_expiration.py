@@ -71,46 +71,64 @@ def test_bool_expiration() -> None:
 
 
 @pytest.mark.parametrize(
-    "value,result",
+    "value",
     [
-        (CachedValue(last_fetched=None, value=None), True),
-        (
-            CachedValue(
-                last_fetched=datetime(year=2000, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc),
-                value=None,
-            ),
-            False,
+        CachedValue(last_fetched=None, value=None),
+        CachedValue(
+            last_fetched=datetime(year=2000, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
         ),
-        (
-            CachedValue(
-                last_fetched=datetime(year=2022, month=9, day=24, hour=0, minute=0, second=0, tzinfo=timezone.utc),
-                value=None,
-            ),
-            False,
+        CachedValue(
+            last_fetched=datetime(year=2022, month=9, day=24, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
         ),
-        (
-            CachedValue(
-                last_fetched=datetime(year=2022, month=9, day=25, hour=0, minute=0, second=0, tzinfo=timezone.utc),
-                value=None,
-            ),
-            True,
+        CachedValue(
+            last_fetched=datetime(year=2022, month=9, day=30, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
         ),
-        (
-            CachedValue(
-                last_fetched=datetime(year=2022, month=9, day=26, hour=0, minute=0, second=0, tzinfo=timezone.utc),
-                value=None,
-            ),
-            True,
+        CachedValue(
+            last_fetched=datetime(year=2022, month=10, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
         ),
     ],
 )
 @pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
-def test_cache_expiration(value: CachedValue, result: bool) -> None:
-    """It should expire the cache based on the set date"""
+def test_cache_expiration_expired(value: CachedValue) -> None:
+    """It should expire the cache based on the current date, the cached records have little impact"""
     cache_expiration = DateCacheExpiration(
         expiry_date=datetime(year=2022, month=9, day=25, hour=0, minute=0, second=0, tzinfo=timezone.utc)
     )
-    assert cache_expiration.is_value_expired(value) == result
+    assert cache_expiration.is_value_expired(value)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        CachedValue(
+            last_fetched=datetime(year=2000, month=1, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
+        ),
+        CachedValue(
+            last_fetched=datetime(year=2022, month=9, day=24, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
+        ),
+        CachedValue(
+            last_fetched=datetime(year=2022, month=9, day=30, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
+        ),
+        CachedValue(
+            last_fetched=datetime(year=2022, month=10, day=1, hour=0, minute=0, second=0, tzinfo=timezone.utc),
+            value=None,
+        ),
+    ],
+)
+@pytest.mark.freeze_time("2022-09-30T00:00:00+0000")
+def test_cache_expiration_not_expired(value: CachedValue) -> None:
+    """It should expire the cache based on the current date, the cached records have little impact"""
+    cache_expiration = DateCacheExpiration(
+        expiry_date=datetime(year=2022, month=10, day=3, hour=0, minute=0, second=0, tzinfo=timezone.utc)
+    )
+    assert not cache_expiration.is_value_expired(value)
 
 
 @pytest.mark.parametrize(
