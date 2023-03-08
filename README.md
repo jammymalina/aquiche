@@ -17,7 +17,7 @@ async def get_client() -> httpx.AsyncClient:
 
 @alru_cache(expiration="10minutes")
 async def get_data(id: str) -> dict:
-    client = get_client()
+    client = await get_client()
     res = await client.get(f"/data/{id}")
     return res.json()
 
@@ -391,8 +391,7 @@ The param `wrap_async_exit_stack` simplifies caching of the async clients. When 
 ```python
 import httpx
 from database_client import DatabaseClient
-from aquiche import alru_cache
-from typing import Any
+from aquiche import alru_cache, await_exit_stack_close_operations, clear_all
 
 @alru_cache(wrap_async_exit_stack=True)
 async def get_client() -> httpx.AsyncClient:
@@ -413,7 +412,7 @@ To prevent the error from happening you can append suffix :ignore_missing to the
 @alru_cache(
     wrap_async_exit_stack=["$.clients.database:ignore_missing", "$.clients.http"]
 )
-def get_clients() -> Any:
+def get_clients() -> dict:
     return {
         "token": "p@ss123",
         "clients": {
@@ -422,6 +421,19 @@ def get_clients() -> Any:
             "database": DatabaseClient()
         }
     }
+
+"""
+When the cache is cleaned the async context managers will be closed. If you want
+to perform a graceful shutdown you can await the close operations. The command has an
+optional timeout.
+"""
+async def shutdown() -> None:
+    await clear_all()
+    await await_exit_stack_close_operations()
+
+async def shutdown_timeout() -> None:
+    await clear_all()
+    await await_exit_stack_close_operations("1minute")
 ```
 
 ### Negative Caching
