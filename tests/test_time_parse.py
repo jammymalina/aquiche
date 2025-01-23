@@ -49,7 +49,7 @@ def create_tz(minutes):
 )
 def test_date_parsing(value: Any, result: Any) -> None:
     """It should parse or not parse dates"""
-    if type(result) == type and issubclass(result, Exception):
+    if type(result) is type and issubclass(result, Exception):
         with pytest.raises(result):
             parse_date(value)
     else:

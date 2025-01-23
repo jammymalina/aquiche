@@ -223,29 +223,7 @@ def test_clear_cache(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.freeze_time
-def test_clear_cache(mocker: MockerFixture) -> None:
-    """It should clear the cache"""
-    counter = mocker.MagicMock(return_value=None)
-
-    @alru_cache
-    def cache_function(value: str) -> int:
-        nonlocal counter
-        counter()
-        return len(value)
-
-    cache_function("a")
-    cache_function("a")
-
-    assert counter.call_count == 1
-
-    cache_function.clear_cache()
-    cache_function("a")
-
-    assert counter.call_count == 2
-
-
-@pytest.mark.freeze_time
-async def test_clear_cache(mocker: MockerFixture) -> None:
+async def test_clear_all_caches(mocker: MockerFixture) -> None:
     """It should clear all the caches"""
     counter = mocker.MagicMock(return_value=None)
 

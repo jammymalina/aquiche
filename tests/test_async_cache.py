@@ -225,30 +225,6 @@ async def test_async_clear_cache(mocker: MockerFixture) -> None:
     assert counter.call_count == 1
 
     await cache_function.clear_cache()
-    assert (await cache_function.cache_info()).current_size == 0
-
-    await cache_function("a")
-
-    assert counter.call_count == 2
-
-
-@pytest.mark.freeze_time
-async def test_async_clear_cache(mocker: MockerFixture) -> None:
-    """It should clear the cache"""
-    counter = mocker.AsyncMock(return_value=None)
-
-    @alru_cache
-    async def cache_function(value: str) -> int:
-        nonlocal counter
-        await counter()
-        return len(value)
-
-    await cache_function("a")
-    await cache_function("a")
-
-    assert counter.call_count == 1
-
-    await cache_function.clear_cache()
     await cache_function("a")
 
     assert counter.call_count == 2
