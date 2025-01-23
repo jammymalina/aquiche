@@ -1,6 +1,6 @@
+import random
 from dataclasses import dataclass
 from datetime import datetime, timezone
-import random
 from threading import Event, RLock
 from time import sleep
 from typing import Any, Callable, Optional, Tuple, Union

@@ -7,18 +7,20 @@ from aquiche.utils._extraction_utils import extract_from_obj, set_value_obj
 
 
 def awaitify(
-    func: Union[Callable[..., Any], Callable[..., Awaitable[Any]], Coroutine]
+    func: Union[Callable[..., Any], Callable[..., Awaitable[Any]], Coroutine],
 ) -> Callable[..., Awaitable[Any]]:
     if iscoroutinefunction(func) and callable(func):
         return func
 
     if callable(func):
+
         async def async_func(*args, **kwargs):
             return func(*args, **kwargs)
 
         return async_func
 
     if isawaitable(func):
+
         async def async_await_func(*_args, **_kwargs):
             return await func
 

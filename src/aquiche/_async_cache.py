@@ -1,8 +1,9 @@
-from asyncio import create_task, Event, Lock, sleep as asleep
+import random
+from asyncio import Event, Lock, create_task
+from asyncio import sleep as asleep
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import random
 from typing import Any, Awaitable, Callable, Optional, Tuple, Union
 
 from aquiche import errors
@@ -150,5 +151,3 @@ class AsyncCachedRecord(AsyncContextMixin):
             return value, True
         except Exception as err:
             return err, False
-
-

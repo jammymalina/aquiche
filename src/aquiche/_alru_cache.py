@@ -1,13 +1,13 @@
+import sys
 from asyncio import (
+    Lock,
     gather,
     iscoroutinefunction,
-    Lock,
     wait_for,
 )
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from functools import partial, update_wrapper
-import sys
 from threading import RLock
 from typing import Awaitable, Callable, List, Optional, Protocol, TypeVar, Union
 
@@ -19,18 +19,18 @@ else:
 from aquiche._async_cache import AsyncCachedRecord
 from aquiche._cache_params import CacheParameters, validate_cache_params
 from aquiche._core import CacheTaskExecutionInfo
-from aquiche.errors import InvalidCacheConfig
 from aquiche._expiration import (
     CacheExpirationValue,
     DurationExpirationValue,
-    get_cache_expiration,
     NonExpiringCacheExpiration,
+    get_cache_expiration,
     parse_expiration_duration_to_timedelta,
 )
-from aquiche._hash import get_key_resolver, KeyType
+from aquiche._hash import KeyType, get_key_resolver
 from aquiche._registry import CacheCleanupRegistry, DestroyRecordTaskRegistry
 from aquiche._repository import CacheRepository, LRUCacheRepository
 from aquiche._sync_cache import SyncCachedRecord
+from aquiche.errors import InvalidCacheConfig
 
 T = TypeVar("T")
 P = ParamSpec("P")
@@ -205,7 +205,6 @@ def _sync_lru_cache_wrapper(
             return result
 
     elif maxsize is None:
-
         make_key = get_key_resolver(key, user_function)
 
         def wrapper(*args, **kwargs) -> T:

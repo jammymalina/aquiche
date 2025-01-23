@@ -1,5 +1,5 @@
-from datetime import date, datetime, time, timedelta, timezone
 import re
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 import pytest
@@ -8,15 +8,15 @@ from pytest_mock import MockerFixture
 from aquiche import errors
 from aquiche._core import CachedValue
 from aquiche._expiration import (
+    AsyncAttributeCacheExpiration,
+    AsyncFuncCacheExpiration,
     BoolCacheExpiration,
     CacheExpiration,
-    NonExpiringCacheExpiration,
     DateCacheExpiration,
+    NonExpiringCacheExpiration,
     RefreshingCacheExpiration,
     SyncAttributeCacheExpiration,
     SyncFuncCacheExpiration,
-    AsyncAttributeCacheExpiration,
-    AsyncFuncCacheExpiration,
     get_cache_expiration,
 )
 

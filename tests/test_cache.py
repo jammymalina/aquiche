@@ -1,4 +1,5 @@
-from asyncio import gather, sleep as asleep
+from asyncio import gather
+from asyncio import sleep as asleep
 from threading import Thread
 
 from pytest_mock import MockerFixture

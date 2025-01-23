@@ -1,17 +1,17 @@
 import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Iterable
-from unittest.mock import ANY, call, MagicMock
+from unittest.mock import ANY, MagicMock, call
 
 import pytest
 from pytest_mock import MockerFixture
 
 from aquiche import (
-    alru_cache,
     CacheInfo,
+    Key,
+    alru_cache,
     clear_all,
     clear_all_sync,
-    Key,
 )
 from aquiche._core import CachedValue
 
@@ -565,7 +565,3 @@ async def test_async_context(mocker: MockerFixture, async_context_manager: Magic
 
     async_context_manager.__aenter__.assert_awaited_once()
     async_context_manager.__aexit__.assert_awaited_once()
-
-
-
-

@@ -5,11 +5,11 @@ import pytest
 from pytest_mock import MockerFixture
 
 from aquiche import (
-    alru_cache,
     CacheInfo,
+    Key,
+    alru_cache,
     clear_all,
     clear_all_sync,
-    Key,
 )
 from aquiche._core import CachedItem
 from aquiche.errors import InvalidCacheConfig

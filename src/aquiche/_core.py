@@ -24,5 +24,4 @@ class CachedValue:
     value: Any = None
     is_error: bool = False
 
-    def destroy_value(self) -> None:
-        ...
+    def destroy_value(self) -> None: ...

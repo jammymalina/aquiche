@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from typing import Any, List, Optional, Tuple, Union, get_args
 
-from aquiche.errors import InvalidCacheConfig
 from aquiche._expiration import CacheExpirationValue, DurationExpirationValue
 from aquiche._hash import KeyType
+from aquiche.errors import InvalidCacheConfig
 
 
 @dataclass
@@ -73,10 +73,7 @@ def validate_cache_params(
         async_context is None
         or isinstance(async_context, bool)
         or async_context == "*"
-        or (
-            isinstance(async_context, list)
-            and all((isinstance(wrapper, str) for wrapper in async_context))
-        )
+        or (isinstance(async_context, list) and all((isinstance(wrapper, str) for wrapper in async_context)))
     ):
         errors += ["async_context should be either None, bool, '*', list[str]"]
 

@@ -1,7 +1,7 @@
+from unittest.mock import ANY, call
 from uuid import uuid4
 
 from pytest_mock import MockerFixture
-from unittest.mock import ANY, call
 
 from aquiche._repository import LRUCacheRepository
 

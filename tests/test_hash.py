@@ -2,7 +2,7 @@ from typing import Dict, Optional
 
 import pytest
 
-from aquiche._hash import get_key_resolver, Key
+from aquiche._hash import Key, get_key_resolver
 
 
 def user_function(

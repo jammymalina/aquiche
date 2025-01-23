@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 import functools
+from dataclasses import dataclass
 from typing import Any, Dict
 
 from aquiche import errors

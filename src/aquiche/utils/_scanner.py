@@ -1,7 +1,6 @@
 from curses.ascii import isalpha, isdigit, isspace
 from enum import Enum
 
-
 TERMINATOR = "\0"
 
 

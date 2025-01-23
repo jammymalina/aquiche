@@ -1,5 +1,5 @@
-from datetime import date, datetime, time, timedelta, timezone
 import inspect
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
 
 import pytest

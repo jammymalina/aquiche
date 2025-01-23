@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](http://semver.org/).
 - Added `refresh_threshold` param
 - Removed `await_exit_stack_close_operations` and `cancel_exit_stack_close_operations` functions
 - Updated documentation to reflect new changes
+- Changed build system from poetry to uv
 
 ### Fixed
 

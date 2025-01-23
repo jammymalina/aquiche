@@ -7,7 +7,7 @@ from aquiche import errors
 from aquiche._core import CachedItem, CachedValue
 from aquiche.utils._async_utils import awaitify
 from aquiche.utils._extraction_utils import extract_from_obj
-from aquiche.utils._time_parse import parse_datetime, parse_date, parse_duration, parse_time
+from aquiche.utils._time_parse import parse_date, parse_datetime, parse_duration, parse_time
 
 CacheExpirationValue = Union[bool, int, float, str, bytes, date, datetime, time, timedelta, Coroutine, Callable]
 DurationExpirationValue = Union[str, bytes, int, float, timedelta]
@@ -26,14 +26,12 @@ def _get_cache_func_value(cached_value: CachedValue) -> CachedItem:
 
 class CacheExpiration(metaclass=ABCMeta):
     @abstractmethod
-    def is_value_expired(self, value: CachedValue) -> bool:
-        ...
+    def is_value_expired(self, value: CachedValue) -> bool: ...
 
 
 class AsyncCacheExpiration(metaclass=ABCMeta):
     @abstractmethod
-    async def is_value_expired(self, value: CachedValue) -> bool:
-        ...
+    async def is_value_expired(self, value: CachedValue) -> bool: ...
 
 
 def _validate_sync_expiration(cache_expiration: Union[CacheExpiration, AsyncCacheExpiration], value: Any) -> None:
@@ -258,7 +256,7 @@ def __get_cache_expiration_from_str(
 
 
 def __get_cache_expiration_from_time(
-    value: Union[date, datetime, time, timedelta]
+    value: Union[date, datetime, time, timedelta],
 ) -> Union[CacheExpiration, AsyncCacheExpiration]:
     if isinstance(value, datetime):
         return DateCacheExpiration(expiry_date=value)

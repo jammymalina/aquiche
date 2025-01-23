@@ -1,13 +1,13 @@
 import asyncio
 from dataclasses import dataclass
 from typing import Any, Iterable
+from unittest.mock import MagicMock, call
 
 import pytest
 from pytest_mock import MockerFixture
-from unittest.mock import call, MagicMock
 
 from aquiche.errors import ExtractionError
-from aquiche.utils._async_utils import awaitify, AsyncContextMixin
+from aquiche.utils._async_utils import AsyncContextMixin, awaitify
 
 
 @dataclass
