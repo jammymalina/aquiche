@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](http://keepachangelog.com/)
 and this project adheres to [Semantic Versioning](http://semver.org/).
 
+## [2.0.0] - ?
+
+### Added
+
+### Changed
+
+- Simplified the interface
+- Renamed `wrap_async_exit_stack` to `async_context`
+- Added `refresh_threshold` param
+- Removed `await_exit_stack_close_operations` and `cancel_exit_stack_close_operations` functions
+- Updated documentation to reflect new changes
+
+### Fixed
+
 ## [1.3.1] - 2023-03-08
 
 ### Added

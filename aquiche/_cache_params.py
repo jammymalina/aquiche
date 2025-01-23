@@ -13,7 +13,7 @@ class CacheParameters:
     maxsize: Optional[int] = None
     expiration: Optional[CacheExpirationValue] = None
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
-    wrap_async_exit_stack: Union[bool, str, List[str], None] = None
+    async_context: Union[bool, str, List[str], None] = None
     exit_stack_close_delay: Optional[DurationExpirationValue] = None
     negative_cache: bool = False
     negative_expiration: Optional[CacheExpirationValue] = None
@@ -31,7 +31,7 @@ def validate_cache_params(
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
-    wrap_async_exit_stack: Union[bool, str, List[str], None],
+    async_context: Union[bool, str, List[str], None],
     exit_stack_close_delay: Optional[DurationExpirationValue],
     negative_cache: bool,
     negative_expiration: Optional[CacheExpirationValue],
@@ -70,15 +70,15 @@ def validate_cache_params(
         ]
 
     if not (
-        wrap_async_exit_stack is None
-        or isinstance(wrap_async_exit_stack, bool)
-        or wrap_async_exit_stack == "*"
+        async_context is None
+        or isinstance(async_context, bool)
+        or async_context == "*"
         or (
-            isinstance(wrap_async_exit_stack, list)
-            and all((isinstance(wrapper, str) for wrapper in wrap_async_exit_stack))
+            isinstance(async_context, list)
+            and all((isinstance(wrapper, str) for wrapper in async_context))
         )
     ):
-        errors += ["wrap_async_exit_stack should be either None, bool, '*', list[str] or a callable function"]
+        errors += ["async_context should be either None, bool, '*', list[str]"]
 
     if not (exit_stack_close_delay is None or isinstance(exit_stack_close_delay, get_args(DurationExpirationValue))):
         errors += [

@@ -13,14 +13,12 @@ def awaitify(
         return func
 
     if callable(func):
-
         async def async_func(*args, **kwargs):
             return func(*args, **kwargs)
 
         return async_func
 
     if isawaitable(func):
-
         async def async_await_func(*_args, **_kwargs):
             return await func
 
@@ -32,8 +30,8 @@ def awaitify(
     return async_return_func
 
 
-class AsyncWrapperMixin:
-    async def wrap_async_exit_stack(
+class AsyncContextMixin:
+    async def enter_async_context(
         self, value: Any, wrap_config: Union[bool, str, List[str]]
     ) -> Tuple[Optional[AsyncExitStack], Any]:
         exit_stack = AsyncExitStack()

@@ -14,7 +14,7 @@ from aquiche._expiration import (
     parse_expiration_duration_to_timedelta,
 )
 from aquiche._registry import DestroyRecordTaskRegistry
-from aquiche.utils._async_utils import AsyncWrapperMixin
+from aquiche.utils._async_utils import AsyncContextMixin
 
 
 @dataclass
@@ -29,14 +29,13 @@ class AsyncCachedValue(CachedValue):
         self.is_error = False
 
 
-class AsyncCachedRecord(AsyncWrapperMixin):
+class AsyncCachedRecord(AsyncContextMixin):
     __lock: Lock
     __get_function: Callable[..., Awaitable[Any]]
     __get_exec_info: CacheTaskExecutionInfo
     __cached_value: AsyncCachedValue
     __expiration: Union[CacheExpiration, AsyncCacheExpiration]
     __negative_expiration: Union[CacheExpiration, AsyncCacheExpiration]
-    __exit_stack_close_delay: Optional[timedelta]
     __destroy_task_registry: DestroyRecordTaskRegistry
 
     def __init__(
@@ -45,7 +44,6 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         get_exec_info: CacheTaskExecutionInfo,
         expiration: Union[AsyncCacheExpiration, CacheExpiration],
         negative_expiration: Union[AsyncCacheExpiration, CacheExpiration],
-        exit_stack_close_delay: Optional[DurationExpirationValue],
         destroy_task_registry: DestroyRecordTaskRegistry,
     ) -> None:
         self.__lock = Lock()
@@ -54,7 +52,6 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         self.__cached_value = AsyncCachedValue()
         self.__expiration = expiration
         self.__negative_expiration = negative_expiration
-        self.__exit_stack_close_delay = parse_expiration_duration_to_timedelta(exit_stack_close_delay)
         self.__destroy_task_registry = destroy_task_registry
 
     async def get_cached(self) -> Any:
@@ -154,6 +151,4 @@ class AsyncCachedRecord(AsyncWrapperMixin):
         except Exception as err:
             return err, False
 
-    async def __close_exit_stack(self, exit_stack: AsyncExitStack, exit_stack_delay: timedelta) -> None:
-        await asleep(exit_stack_delay.total_seconds())
-        await exit_stack.aclose()
+

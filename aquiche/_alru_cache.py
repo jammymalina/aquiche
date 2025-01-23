@@ -62,8 +62,8 @@ def alru_cache(
     maxsize: Optional[int] = None,
     expiration: Optional[CacheExpirationValue] = None,
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None,
-    wrap_async_exit_stack: Union[bool, str, List[str], None] = None,
-    exit_stack_close_delay: Optional[DurationExpirationValue] = None,
+    async_context: Union[bool, str, List[str], None] = None,
+    refresh_threshold: Optional[DurationExpirationValue] = None,
     negative_cache: bool = False,
     negative_expiration: Optional[CacheExpirationValue] = "10 seconds",
     retry_count: int = 0,
@@ -75,8 +75,8 @@ def alru_cache(
         maxsize=maxsize,
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
-        wrap_async_exit_stack=wrap_async_exit_stack,
-        exit_stack_close_delay=exit_stack_close_delay,
+        async_context=async_context,
+        refresh_threshold=refresh_threshold,
         negative_cache=negative_cache,
         negative_expiration=negative_expiration,
         retry_count=retry_count,
@@ -88,8 +88,8 @@ def alru_cache(
         maxsize=maxsize,
         expiration=expiration,
         expired_items_auto_removal_period=expired_items_auto_removal_period,
-        wrap_async_exit_stack=wrap_async_exit_stack,
-        exit_stack_close_delay=exit_stack_close_delay,
+        async_context=async_context,
+        refresh_threshold=refresh_threshold,
         negative_cache=negative_cache,
         negative_expiration=negative_expiration,
         retry_count=retry_count,
@@ -149,26 +149,6 @@ def clear_all_sync() -> None:
             clear_callback()
 
 
-async def cancel_exit_stack_close_operations() -> None:
-    task_registry = DestroyRecordTaskRegistry()
-    tasks = task_registry.get_tasks()
-    for task_iter in tasks:
-        task_iter.cancel()
-    await gather(*(tasks), return_exceptions=True)
-
-
-async def await_exit_stack_close_operations(timeout: Optional[DurationExpirationValue] = None) -> None:
-    task_registry = DestroyRecordTaskRegistry()
-    tasks = task_registry.get_tasks()
-
-    timeout = parse_expiration_duration_to_timedelta(timeout)
-    if timeout is None:
-        await gather(*tasks, return_exceptions=True)
-        return
-
-    await wait_for(gather(*tasks, return_exceptions=True), timeout.total_seconds())
-
-
 def _sync_lru_cache_wrapper(
     user_function: Callable[P, T],
     enabled: bool,
@@ -176,14 +156,14 @@ def _sync_lru_cache_wrapper(
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
-    wrap_async_exit_stack: Union[bool, str, List[str], None],
-    exit_stack_close_delay: Optional[DurationExpirationValue],
+    async_context: Union[bool, str, List[str], None],
+    refresh_threshold: Optional[DurationExpirationValue],
     negative_cache: bool,
     negative_expiration: Optional[CacheExpirationValue],
     retry_count: int,
     backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
-    if wrap_async_exit_stack or exit_stack_close_delay:
+    if async_context:
         raise InvalidCacheConfig(["exit stack parameters can only be used with async functions"])
 
     cache: CacheRepository = LRUCacheRepository(maxsize=maxsize)
@@ -249,7 +229,7 @@ def _sync_lru_cache_wrapper(
                             fail=not negative_cache,
                             retries=retry_count,
                             backoff_in_seconds=backoff_in_seconds,
-                            wrap_async_exit_stack=False,
+                            async_context=False,
                         ),
                         expiration=get_cache_expiration(
                             expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
@@ -286,7 +266,7 @@ def _sync_lru_cache_wrapper(
                             fail=not negative_cache,
                             retries=retry_count,
                             backoff_in_seconds=backoff_in_seconds,
-                            wrap_async_exit_stack=False,
+                            async_context=False,
                         ),
                         expiration=get_cache_expiration(
                             expiration, prefer_async=False, default_expiration=NonExpiringCacheExpiration()
@@ -339,7 +319,7 @@ def _async_lru_cache_wrapper(
     maxsize: Optional[int],
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
-    wrap_async_exit_stack: Union[bool, str, List[str], None],
+    async_context: Union[bool, str, List[str], None],
     exit_stack_close_delay: Optional[DurationExpirationValue],
     negative_cache: bool,
     negative_expiration: Optional[CacheExpirationValue],
@@ -419,7 +399,7 @@ def _async_lru_cache_wrapper(
                             fail=not negative_cache,
                             retries=retry_count,
                             backoff_in_seconds=backoff_in_seconds,
-                            wrap_async_exit_stack=wrap_async_exit_stack or False,
+                            async_context=async_context or False,
                         ),
                         expiration=get_cache_expiration(
                             expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
@@ -458,7 +438,7 @@ def _async_lru_cache_wrapper(
                             fail=not negative_cache,
                             retries=retry_count,
                             backoff_in_seconds=backoff_in_seconds,
-                            wrap_async_exit_stack=wrap_async_exit_stack or False,
+                            async_context=async_context or False,
                         ),
                         expiration=get_cache_expiration(
                             expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()

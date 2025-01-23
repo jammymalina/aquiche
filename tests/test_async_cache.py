@@ -11,8 +11,6 @@ from aquiche import (
     CacheInfo,
     clear_all,
     clear_all_sync,
-    await_exit_stack_close_operations,
-    cancel_exit_stack_close_operations,
     Key,
 )
 from aquiche._core import CachedValue
@@ -552,11 +550,11 @@ async def test_async_retry_cache(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.freeze_time
-async def test_wrap_exit_stack(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
-    """It should wrap the value with the async exit stack and close the async exit stack on clear"""
+async def test_async_context(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
+    """It should enter the async context and close the async exit stack on clear"""
     counter = mocker.AsyncMock(return_value=None)
 
-    @alru_cache(wrap_async_exit_stack=True)
+    @alru_cache(async_context=True)
     async def cache_function(_value: str) -> int:
         nonlocal counter
         await counter()
@@ -569,61 +567,5 @@ async def test_wrap_exit_stack(mocker: MockerFixture, async_context_manager: Mag
     async_context_manager.__aexit__.assert_awaited_once()
 
 
-@pytest.mark.freeze_time
-async def test_wrap_exit_stack_delay_cancel(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
-    """It should wrap the value with the async exit stack and cancel the async exit stack close operations"""
-    counter = mocker.AsyncMock(return_value=None)
-
-    @alru_cache(wrap_async_exit_stack=True, exit_stack_close_delay="1day")
-    async def cache_function(_value: str) -> int:
-        nonlocal counter
-        await counter()
-        return async_context_manager
-
-    await cache_function("a")
-    await clear_all()
-    await cancel_exit_stack_close_operations()
-
-    async_context_manager.__aenter__.assert_awaited_once()
-    async_context_manager.__aexit__.assert_not_awaited()
 
 
-@pytest.mark.freeze_time
-async def test_wrap_exit_stack_delay_await(
-    mocker: MockerFixture, async_context_manager: MagicMock, freezer: Any
-) -> None:
-    """It should wrap the value with the async exit stack and close the async exit stack with delay"""
-    counter = mocker.AsyncMock(return_value=None)
-
-    @alru_cache(wrap_async_exit_stack=True, exit_stack_close_delay="1second")
-    async def cache_function(_value: str) -> int:
-        nonlocal counter
-        await counter()
-        return async_context_manager
-
-    await cache_function("a")
-    await clear_all()
-
-    freezer.move_to(datetime.now(timezone.utc) + timedelta(minutes=5))
-    await await_exit_stack_close_operations()
-
-    async_context_manager.__aenter__.assert_awaited_once()
-    async_context_manager.__aexit__.assert_awaited_once()
-
-
-async def test_wrap_exit_stack_delay_await_timeout(mocker: MockerFixture, async_context_manager: MagicMock) -> None:
-    """It should wrap the value with the async exit stack and timeout on waiting for the async exit stack to close"""
-    counter = mocker.AsyncMock(return_value=None)
-
-    @alru_cache(wrap_async_exit_stack=True, exit_stack_close_delay="1day")
-    async def cache_function(_value: str) -> int:
-        nonlocal counter
-        await counter()
-        return async_context_manager
-
-    await cache_function("a")
-    await clear_all()
-    await_exit_stack_close_operations(timeout="1s")
-
-    async_context_manager.__aenter__.assert_awaited_once()
-    async_context_manager.__aexit__.assert_not_awaited()

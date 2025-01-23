@@ -7,7 +7,7 @@ from pytest_mock import MockerFixture
 from unittest.mock import call, MagicMock
 
 from aquiche.errors import ExtractionError
-from aquiche.utils._async_utils import awaitify, AsyncWrapperMixin
+from aquiche.utils._async_utils import awaitify, AsyncContextMixin
 
 
 @dataclass
@@ -89,7 +89,7 @@ async def test_awaitify_async() -> None:
 
 async def test_async_mixin(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap the whole object with async exit stack"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     _exit_stack, value = await mixin.wrap_async_exit_stack(42, True)
 
@@ -99,7 +99,7 @@ async def test_async_mixin(mocker: MockerFixture, async_exit_stack: MagicMock) -
 
 async def test_async_mixin_paths_dict(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap the selected keys with async exit stack, dict"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     data = {
         "a": 1,
@@ -143,7 +143,7 @@ async def test_async_mixin_paths_dict(mocker: MockerFixture, async_exit_stack: M
 
 async def test_async_mixin_paths_object(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap the selected keys with async exit stack, object"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     data = Person()
     _exit_stack, wrapped_data = await mixin.wrap_async_exit_stack(data, ["pet.name", "residence.type"])
@@ -158,7 +158,7 @@ async def test_async_mixin_paths_object(mocker: MockerFixture, async_exit_stack:
 
 async def test_missing_value_ignore_missing(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap the selected keys with async exit stack and ignore the missing values"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     data = Person()
     _exit_stack, wrapped_data = await mixin.wrap_async_exit_stack(
@@ -174,7 +174,7 @@ async def test_missing_value_ignore_missing(mocker: MockerFixture, async_exit_st
 
 async def test_missing_value_missing_fail(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap the selected keys with async exit stack and ignore the missing values"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     data = Person()
 
@@ -190,7 +190,7 @@ async def test_missing_value_missing_fail(mocker: MockerFixture, async_exit_stac
 
 async def test_wrap_all_dict(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap all the values in dictionary with async exit stack"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     data = {
         "a": 1,
@@ -218,7 +218,7 @@ async def test_wrap_all_dict(mocker: MockerFixture, async_exit_stack: MagicMock)
 
 async def test_wrap_all_object(mocker: MockerFixture, async_exit_stack: MagicMock) -> None:
     """It should wrap all the values in the object with async exit stack"""
-    mixin = AsyncWrapperMixin()
+    mixin = AsyncContextMixin()
 
     data = Person()
     data.pet = Pet(name="Salem", species="Cat")
