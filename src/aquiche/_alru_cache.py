@@ -163,7 +163,7 @@ def _sync_lru_cache_wrapper(
     backoff_in_seconds: Union[int, float],
 ) -> AquicheFunctionWrapper[Callable[P, T]]:
     if async_context:
-        raise InvalidCacheConfig(["exit stack parameters can only be used with async functions"])
+        raise InvalidCacheConfig(["async context parameters can only be used with async functions"])
 
     cache: CacheRepository = LRUCacheRepository(maxsize=maxsize)
     cleanup_repository = CacheCleanupRegistry()
