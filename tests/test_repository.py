@@ -1,4 +1,4 @@
-from unittest.mock import ANY, call
+from unittest.mock import call
 from uuid import uuid4
 
 from pytest_mock import MockerFixture

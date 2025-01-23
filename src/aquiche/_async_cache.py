@@ -3,7 +3,7 @@ from asyncio import Event, Lock, create_task
 from asyncio import sleep as asleep
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional, Tuple, Union
 
 from aquiche import errors
@@ -11,8 +11,6 @@ from aquiche._core import CachedValue, CacheTaskExecutionInfo
 from aquiche._expiration import (
     AsyncCacheExpiration,
     CacheExpiration,
-    DurationExpirationValue,
-    parse_expiration_duration_to_timedelta,
 )
 from aquiche._registry import DestroyRecordTaskRegistry
 from aquiche.utils._async_utils import AsyncContextMixin

@@ -37,7 +37,7 @@ class SumExpressionParser:
             )
 
         token = self.scanner.token if self.config.case_sensitive else self.scanner.token.lower()
-        if not token in self.config.value_mapping:
+        if token not in self.config.value_mapping:
             raise InvalidExpressionError(
                 expression=self.scanner.input, position=self.scanner.position, error_message="unknown identifier"
             )
