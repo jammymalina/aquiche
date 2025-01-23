@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    environment:
+      name: release
+      url: https://pypi.org/project/aquiche/
+    permissions:
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+        with:
+          python-version: "3.9"
+      - name: Build the library
+        run: uv build
+      - name: Publish package to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1

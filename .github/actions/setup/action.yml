@@ -1,0 +1,22 @@
+name: "Installs uv, python and all other dependencies"
+inputs:
+  python-version:
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v4
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        version: "0.5.23"
+    - name: Verify lock file
+      run: uv lock --check
+      shell: bash
+    - name: Install the project
+      run: uv sync --all-extras --dev
+      shell: bash
