@@ -318,7 +318,6 @@ def _async_lru_cache_wrapper(
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Union[str, bytes, int, float, timedelta, None],
     async_context: Union[bool, str, List[str], None],
-    exit_stack_close_delay: Optional[DurationExpirationValue],
     negative_cache: bool,
     negative_expiration: Optional[CacheExpirationValue],
     retry_count: int,
@@ -405,7 +404,6 @@ def _async_lru_cache_wrapper(
                         negative_expiration=get_cache_expiration(
                             negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
                         ),
-                        exit_stack_close_delay=exit_stack_close_delay,
                         destroy_task_registry=destroy_task_registry,
                     )
                     cache.add_no_adjust(key=key, value=record)
@@ -444,7 +442,6 @@ def _async_lru_cache_wrapper(
                         negative_expiration=get_cache_expiration(
                             negative_expiration, prefer_async=True, default_expiration=NonExpiringCacheExpiration()
                         ),
-                        exit_stack_close_delay=exit_stack_close_delay,
                         destroy_task_registry=destroy_task_registry,
                     )
                     cache.add(key=key, value=record)

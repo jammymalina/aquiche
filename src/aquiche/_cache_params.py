@@ -14,7 +14,6 @@ class CacheParameters:
     expiration: Optional[CacheExpirationValue] = None
     expired_items_auto_removal_period: Optional[DurationExpirationValue] = None
     async_context: Union[bool, str, List[str], None] = None
-    exit_stack_close_delay: Optional[DurationExpirationValue] = None
     negative_cache: bool = False
     negative_expiration: Optional[CacheExpirationValue] = None
     retry_count: int = 0
@@ -32,7 +31,7 @@ def validate_cache_params(
     expiration: Optional[CacheExpirationValue],
     expired_items_auto_removal_period: Optional[DurationExpirationValue],
     async_context: Union[bool, str, List[str], None],
-    exit_stack_close_delay: Optional[DurationExpirationValue],
+    refresh_threshold: Optional[DurationExpirationValue],
     negative_cache: bool,
     negative_expiration: Optional[CacheExpirationValue],
     retry_count: int,
@@ -69,6 +68,12 @@ def validate_cache_params(
             + __extract_type_names(get_args(DurationExpirationValue))
         ]
 
+    if not (refresh_threshold is None or isinstance(refresh_threshold, get_args(DurationExpirationValue))):
+        errors += [
+            "refresh_threshold should be either None or one of these types:"
+            + __extract_type_names(get_args(DurationExpirationValue))
+        ]
+
     if not (
         async_context is None
         or isinstance(async_context, bool)
@@ -76,12 +81,6 @@ def validate_cache_params(
         or (isinstance(async_context, list) and all((isinstance(wrapper, str) for wrapper in async_context)))
     ):
         errors += ["async_context should be either None, bool, '*', list[str]"]
-
-    if not (exit_stack_close_delay is None or isinstance(exit_stack_close_delay, get_args(DurationExpirationValue))):
-        errors += [
-            "exit_stack_close_delay should be either None or one of these types:"
-            + __extract_type_names(get_args(DurationExpirationValue))
-        ]
 
     if not isinstance(negative_cache, bool):
         errors += ["negative_cache should be bool"]

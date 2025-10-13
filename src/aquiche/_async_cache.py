@@ -1,5 +1,5 @@
 import random
-from asyncio import Event, Lock, create_task
+from asyncio import Event, Lock
 from asyncio import sleep as asleep
 from contextlib import AsyncExitStack
 from dataclasses import dataclass
@@ -82,12 +82,7 @@ class AsyncCachedRecord(AsyncContextMixin):
 
         exit_stack = self.__cached_value.exit_stack
         if exit_stack is not None:
-            if self.__exit_stack_close_delay is not None:
-                self.__destroy_task_registry.add_task(
-                    create_task(self.__close_exit_stack(exit_stack, self.__exit_stack_close_delay))
-                )
-            else:
-                await exit_stack.aclose()
+            await exit_stack.aclose()
 
         self.__cached_value.destroy_value()
 
